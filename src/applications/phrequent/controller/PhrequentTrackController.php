@@ -1,5 +1,6 @@
-< ? php final class PhrequentTrackController extends PhrequentController
-{
+<?php
+
+ final class PhrequentTrackController extends PhrequentController {
 
   private $verb;
   private $phid;
@@ -36,9 +37,9 @@
         $button_text = pht ('Add Worklog');
         $title_text = pht ('Add Worklog');
         $inner_text = pht ('When did you start ');
-        $inner_text. = pht ('and how long did you worked on current item?');
-        $inner_text. = pht ('You can log weeks, days, hours and minutes using');
-        $inner_text. = pht (' one digit and one letter for each, ex. 1w2d5h30m');
+        $inner_text .= pht('and how long did you worked on current item?');
+        $inner_text .= pht('You can log weeks, days, hours and minutes using');
+        $inner_text .= pht(' one digit and one letter for each, ex. 1w2d5h30m');
         $ok_button_text = pht ('Add worklog');
         $label_text = pht ('Start Time');
         $worklog_action_text = pht ('Worklog');
@@ -217,16 +218,16 @@
 
   private function isStartingTracking ()
   {
-    return $this->verb == = 'start';
+    return $this->verb == 'start';
   }
 
   private function isStoppingTracking ()
   {
-    return $this->verb == = 'stop';
+    return $this->verb == 'stop';
   }
 
   private function isWorklog ()
   {
-    return $this->verb == = 'worklog';
+    return $this->verb == 'worklog';
   }
 }
