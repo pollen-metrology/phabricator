@@ -163,6 +163,11 @@ final class PhrequentSearchEngine extends PhabricatorApplicationSearchEngine {
             $time_spent));
         $item->addAttribute(
           pht(
+            'Started on %s',
+            phabricator_datetime($usertime->getDateStarted(), $viewer)));
+
+        $item->addAttribute(
+          pht(
             'Ended on %s',
             phabricator_datetime($usertime->getDateEnded(), $viewer)));
       } else {
