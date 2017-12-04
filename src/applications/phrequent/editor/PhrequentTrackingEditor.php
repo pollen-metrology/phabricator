@@ -12,6 +12,30 @@ final class PhrequentTrackingEditor extends PhabricatorEditor {
     return $phid;
   }
 
+  public function addWorklog(
+    PhabricatorUser $user,
+    $phid,
+    $begin_timestamp,
+    $worklog,
+    $note) {
+
+    $usertime_dao = new PhrequentUserTime();
+    $conn = $usertime_dao->establishConnection('r');
+
+    $worklog_parser = new WorklogParser($begin_timestamp, $worklog);
+    $end_timestamp = $worklog_parser->getTimeStamp();
+
+    $usertime = new PhrequentUserTime();
+    $usertime->setDateStarted($begin_timestamp);
+    $usertime->setDateEnded($end_timestamp);
+    $usertime->setUserPHID($user->getPHID());
+    $usertime->setObjectPHID($phid);
+    $usertime->save();
+
+    return $phid;
+  }
+
+
   public function stopTracking(
     PhabricatorUser $user,
     $phid,
