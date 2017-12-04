@@ -42,19 +42,30 @@ final class PhrequentUIEventListener
         ->setIcon('fa-clock-o')
         ->setWorkflow(true)
         ->setHref('/phrequent/track/start/'.$object->getPHID().'/');
+      $this->addActionMenuItems($event, $track_action);
+
+      $track_action = id(new PhabricatorActionView())
+        ->setName(pht('Add Worklog'))
+        ->setIcon('fa-clock-o green')
+        ->setWorkflow(true)
+        ->setHref('/phrequent/track/worklog/'.$object->getPHID().'/');
+      $this->addActionMenuItems($event, $track_action);
+
+
     } else {
       $track_action = id(new PhabricatorActionView())
         ->setName(pht('Stop Tracking Time'))
         ->setIcon('fa-clock-o red')
         ->setWorkflow(true)
         ->setHref('/phrequent/track/stop/'.$object->getPHID().'/');
+      $this->addActionMenuItems($event, $track_action);
     }
 
     if (!$user->isLoggedIn()) {
       $track_action->setDisabled(true);
     }
 
-    $this->addActionMenuItems($event, $track_action);
-  }
+
+ }
 
 }
