@@ -458,6 +458,12 @@ abstract class PhabricatorApplicationTransaction
       case PhabricatorTransactions::TYPE_JOIN_POLICY:
         return 'fa-lock';
       case PhabricatorTransactions::TYPE_EDGE:
+        switch ($this->getMetadataValue('edge:type')) {
+          case DiffusionCommitRevertedByCommitEdgeType::EDGECONST:
+            return 'fa-undo';
+          case DiffusionCommitRevertsCommitEdgeType::EDGECONST:
+            return 'fa-ambulance';
+        }
         return 'fa-link';
       case PhabricatorTransactions::TYPE_BUILDABLE:
         return 'fa-wrench';
@@ -494,6 +500,14 @@ abstract class PhabricatorApplicationTransaction
         $comment = $this->getComment();
         if ($comment && $comment->getIsRemoved()) {
           return 'black';
+        }
+        break;
+      case PhabricatorTransactions::TYPE_EDGE:
+        switch ($this->getMetadataValue('edge:type')) {
+          case DiffusionCommitRevertedByCommitEdgeType::EDGECONST:
+            return 'pink';
+          case DiffusionCommitRevertsCommitEdgeType::EDGECONST:
+            return 'sky';
         }
         break;
       case PhabricatorTransactions::TYPE_BUILDABLE:
@@ -629,6 +643,8 @@ abstract class PhabricatorApplicationTransaction
           case PhabricatorObjectMentionsObjectEdgeType::EDGECONST:
           case ManiphestTaskHasDuplicateTaskEdgeType::EDGECONST:
           case ManiphestTaskIsDuplicateOfTaskEdgeType::EDGECONST:
+          case PhabricatorMutedEdgeType::EDGECONST:
+          case PhabricatorMutedByEdgeType::EDGECONST:
             return true;
             break;
           case PhabricatorObjectMentionedByObjectEdgeType::EDGECONST:
