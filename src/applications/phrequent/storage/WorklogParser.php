@@ -22,8 +22,11 @@ final class WorklogParser {
   protected static $regexWorklogItem = '/(\d{1,})(\w)/';
 
   protected static $durationMap = [
+    /*
     'w' => 126000,// 60 * 60 * 7 * 5
     'd' => 25200, // 60 * 60 * 7
+    */
+    
     'h' => 3600,  // 60 * 60
     'm' => 60,
   ];
@@ -52,7 +55,7 @@ final class WorklogParser {
     $duration_in_second = 0;
 
     foreach ($tokens as $token) {
-      $matches = ['', 0, 'm']; // default to 0 seconds
+      $matches = ['', 0, 'm']; // default to 0 minutes 
       preg_match(static::$regexWorklogItem, $token, $matches);
       if (!$matches[1] || !$matches[2]) {
 

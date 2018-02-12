@@ -38,8 +38,10 @@
         $title_text = pht ('Add Worklog');
         $inner_text = pht ('When did you start ');
         $inner_text .= pht('and how long did you worked on current item?');
-        $inner_text .= pht('You can log weeks, days, hours and minutes using');
-        $inner_text .= pht(' one digit and one letter for each, ex. 1w2d5h30m');
+        //$inner_text .= pht('You can log weeks, days, hours and minutes using');
+        //$inner_text .= pht(' one digit and one letter for each, ex. 1w2d5h30m');
+        $inner_text .= pht('You can log hours and minutes using');
+        $inner_text .= pht(' one digit and one letter for each, ex. 5h30m');
         $ok_button_text = pht ('Add worklog');
         $label_text = pht ('Start Time');
         $worklog_action_text = pht ('Worklog');
