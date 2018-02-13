@@ -5322,6 +5322,7 @@ phutil_register_library_map(array(
     'PhrequentTimeBlock' => 'applications/phrequent/storage/PhrequentTimeBlock.php',
     'PhrequentTimeBlockTestCase' => 'applications/phrequent/storage/__tests__/PhrequentTimeBlockTestCase.php',
     'PhrequentTimeSlices' => 'applications/phrequent/storage/PhrequentTimeSlices.php',
+    'PhrequentTimespendConduitAPIMethod' => 'applications/phrequent/conduit/PhrequentTimespendConduitAPIMethod.php',
     'PhrequentTrackController' => 'applications/phrequent/controller/PhrequentTrackController.php',
     'PhrequentTrackableInterface' => 'applications/phrequent/interface/PhrequentTrackableInterface.php',
     'PhrequentTrackingConduitAPIMethod' => 'applications/phrequent/conduit/PhrequentTrackingConduitAPIMethod.php',
@@ -5577,6 +5578,8 @@ phutil_register_library_map(array(
     'UserQueryConduitAPIMethod' => 'applications/people/conduit/UserQueryConduitAPIMethod.php',
     'UserSearchConduitAPIMethod' => 'applications/people/conduit/UserSearchConduitAPIMethod.php',
     'UserWhoAmIConduitAPIMethod' => 'applications/people/conduit/UserWhoAmIConduitAPIMethod.php',
+    'WorklogParser' => 'applications/phrequent/storage/WorklogParser.php',
+    'WorklogParserTestCase' => 'applications/phrequent/storage/__tests__/WorklogParserTestCase.php',
   ),
   'function' => array(
     'celerity_generate_unique_node_id' => 'applications/celerity/api.php',
@@ -11819,6 +11822,7 @@ phutil_register_library_map(array(
     'PhrequentTimeBlock' => 'Phobject',
     'PhrequentTimeBlockTestCase' => 'PhabricatorTestCase',
     'PhrequentTimeSlices' => 'Phobject',
+    'PhrequentTimespendConduitAPIMethod' => 'PhrequentConduitAPIMethod',
     'PhrequentTrackController' => 'PhrequentController',
     'PhrequentTrackingConduitAPIMethod' => 'PhrequentConduitAPIMethod',
     'PhrequentTrackingEditor' => 'PhabricatorEditor',
@@ -12132,5 +12136,6 @@ phutil_register_library_map(array(
     'UserQueryConduitAPIMethod' => 'UserConduitAPIMethod',
     'UserSearchConduitAPIMethod' => 'PhabricatorSearchEngineAPIMethod',
     'UserWhoAmIConduitAPIMethod' => 'UserConduitAPIMethod',
+    'WorklogParserTestCase' => 'PhabricatorTestCase',
   ),
 ));
