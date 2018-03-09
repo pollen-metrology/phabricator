@@ -170,6 +170,22 @@ final class PhrequentSearchEngine extends PhabricatorApplicationSearchEngine {
           pht(
             'Ended on %s',
             phabricator_datetime($usertime->getDateEnded(), $viewer)));
+
+        if ($usertime->getObjectPHID() !== null &&
+           $usertime->getUserPHID() === $viewer->getPHID()) {
+          $item->addAction(
+              id(new PHUIListItemView())
+                ->setIcon('fa-trash')
+                ->addSigil('phrequent-delete-worklog')
+                ->setWorkflow(true)
+                ->setRenderNameAsTooltip(true)
+                ->setName(pht('Delete'))
+                ->setHref(
+                '/phrequent/track/delete/'.
+                $usertime->getObjectPHID().
+                '/&__back__='.$this->getRequest()->GetPath()));
+        }
+
       } else {
         $item->addAttribute(
           pht(
