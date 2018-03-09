@@ -173,6 +173,16 @@ final class PhrequentSearchEngine extends PhabricatorApplicationSearchEngine {
 
         if ($usertime->getObjectPHID() !== null &&
            $usertime->getUserPHID() === $viewer->getPHID()) {
+          $href = "/";
+          if($this->getRequest() == null){
+            $href = "/";
+          }
+          else
+          {
+            $href= '/phrequent/track/delete/'.
+              $usertime->getObjectPHID().
+              '/&__back__='.$this->getRequest()->GetPath();
+          }
           $item->addAction(
               id(new PHUIListItemView())
                 ->setIcon('fa-trash')
@@ -180,10 +190,7 @@ final class PhrequentSearchEngine extends PhabricatorApplicationSearchEngine {
                 ->setWorkflow(true)
                 ->setRenderNameAsTooltip(true)
                 ->setName(pht('Delete'))
-                ->setHref(
-                '/phrequent/track/delete/'.
-                $usertime->getObjectPHID().
-                '/&__back__='.$this->getRequest()->GetPath()));
+                ->setHref($href));
         }
 
       } else {
