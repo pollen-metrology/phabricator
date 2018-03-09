@@ -16,6 +16,7 @@
     $request = $this->getRequest ();
     $viewer = $request->getUser ();
 
+
     $phid = $this->phid;
     $handle =
       id (new PhabricatorHandleQuery ())->setViewer ($viewer)->
@@ -38,8 +39,10 @@
         $title_text = pht ('Add Worklog');
         $inner_text = pht ('When did you start ');
         $inner_text .= pht('and how long did you worked on current item?');
-        //$inner_text .= pht('You can log weeks, days, hours and minutes using');
-        //$inner_text .= pht(' one digit and one letter for each, ex. 1w2d5h30m');
+        // $inner_text .= pht('You can log weeks, ').
+        //    pht('days, hours and minutes using');
+        // $inner_text .= pht(' one digit and one letter for each').
+        //      pth((, ex. 1w2d5h30m');
         $inner_text .= pht('You can log hours and minutes using');
         $inner_text .= pht(' one digit and one letter for each, ex. 5h30m');
         $ok_button_text = pht ('Add worklog');
@@ -68,6 +71,43 @@
               addCancelButton ($done_uri);
           }
         break;
+
+      case 'delete':
+        $query = id(new PhrequentUserTimeQuery())
+            ->needPreemptingEvents(true);
+        $query->withUserPHIDs(array($viewer->getPHID()));
+        $query->withObjectPHIDs(array($phid));
+        $query->setViewer($viewer);
+        $usertime = $query->executeOne();
+
+        if ($usertime->getObjectPHID() !== null &&
+           $usertime->getUserPHID() === $viewer->getPHID()) {
+
+        $request_data =  $request->getRequestData();
+        $is_confirmed = ($request_data['__confirm__'] == 'true');
+        if ($is_confirmed) {
+            // actual delete
+            $usertime->delete();
+            $done_uri = $request_data['__back__'];
+            return id(new AphrontRedirectResponse ())->setURI($done_uri);
+        } else {
+            $done_uri = $request_data['__back__'];
+            return $this->newDialog()->setTitle(pht('Timelog deletion'))
+              ->appendParagraph(pht('Are you sure to delete this timelog?'))
+              ->addSubmitButton(pht('Yes, delete'))
+              ->addCancelButton($done_uri)
+              ->addHiddenInput('__confirm__', 'true')
+              ->addHiddenInput('__back__', $done_uri);
+        }
+    } else {
+          return $this->newDialog()->setTitle(pht('You are not the owner'))
+              ->appendParagraph(
+                pht('You cannot delete timelog created by another user.'))
+              ->addCancelButton($done_uri);
+    }
+        break;
+
+
       default:
         return new Aphront404Response ();
       }
