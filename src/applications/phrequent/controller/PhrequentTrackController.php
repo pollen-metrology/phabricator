@@ -73,38 +73,49 @@
         break;
 
       case 'delete':
-        $query = id(new PhrequentUserTimeQuery())
-            ->needPreemptingEvents(true);
-        $query->withUserPHIDs(array($viewer->getPHID()));
-        $query->withObjectPHIDs(array($phid));
+
+        $request_data =  $request->getRequestData();
+        $timelog_id =  $request_data['__timelog_id__'];
+        $query = new PhrequentUserTimeQuery();
+        $query->withIDs(array($timelog_id));
         $query->setViewer($viewer);
         $usertime = $query->executeOne();
 
-        if ($usertime->getObjectPHID() !== null &&
-           $usertime->getUserPHID() === $viewer->getPHID()) {
+        if ($usertime !== null) {
+            if ($usertime->getObjectPHID() !== null &&
+                   $usertime->getUserPHID() === $viewer->getPHID()) {
 
-        $request_data =  $request->getRequestData();
-        $is_confirmed = ($request_data['__confirm__'] == 'true');
-        if ($is_confirmed) {
-            // actual delete
-            $usertime->delete();
-            $done_uri = $request_data['__back__'];
-            return id(new AphrontRedirectResponse ())->setURI($done_uri);
-        } else {
-            $done_uri = $request_data['__back__'];
-            return $this->newDialog()->setTitle(pht('Timelog deletion'))
-              ->appendParagraph(pht('Are you sure to delete this timelog?'))
-              ->addSubmitButton(pht('Yes, delete'))
-              ->addCancelButton($done_uri)
-              ->addHiddenInput('__confirm__', 'true')
-              ->addHiddenInput('__back__', $done_uri);
-        }
-    } else {
-          return $this->newDialog()->setTitle(pht('You are not the owner'))
-              ->appendParagraph(
-                pht('You cannot delete timelog created by another user.'))
-              ->addCancelButton($done_uri);
-    }
+                $is_confirmed = ($request_data['__confirm__'] == 'true');
+                if ($is_confirmed) {
+                    // actual delete
+                    $usertime->delete();
+                    $done_uri = $request_data['__back__'];
+                    return id(new AphrontRedirectResponse ())
+                      ->setURI($done_uri);
+                } else {
+                    $done_uri = $request_data['__back__'];
+                    return $this->newDialog()->setTitle(pht('Timelog deletion'))
+                      ->appendParagraph(
+                        pht('Are you sure to delete this timelog?'))
+                      ->addSubmitButton(pht('Yes, delete'))
+                      ->addCancelButton($done_uri)
+                      ->addHiddenInput('__timelog_id__', $timelog_id)
+                      ->addHiddenInput('__confirm__', 'true')
+                      ->addHiddenInput('__back__', $done_uri);
+                }
+            } else {
+                  return $this->newDialog()
+                    ->setTitle(pht('You are not the owner'))
+                    ->appendParagraph(
+                      pht('You cannot delete timelog created by another user.'))
+                    ->addCancelButton($done_uri);
+            }
+          } else {
+            return $this->newDialog()->setTitle(pht('Worklog not found'))
+                    ->appendParagraph(
+                    pht('I was unable to found the worklog you try to delete.'))
+                    ->addCancelButton($done_uri);
+          }
         break;
 
 

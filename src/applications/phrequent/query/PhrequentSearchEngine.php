@@ -172,17 +172,19 @@ final class PhrequentSearchEngine extends PhabricatorApplicationSearchEngine {
             phabricator_datetime($usertime->getDateEnded(), $viewer)));
 
         if ($usertime->getObjectPHID() !== null &&
-           $usertime->getUserPHID() === $viewer->getPHID()) {
-          $href = "/";
-          if($this->getRequest() == null){
-            $href = "/";
+          $usertime->getUserPHID() === $viewer->getPHID()) {
+          $back_uri = '/';
+          if ($this->getRequest() !== null) {
+            $back_uri = $this->getRequest()->GetPath();
           }
-          else
-          {
-            $href= '/phrequent/track/delete/'.
-              $usertime->getObjectPHID().
-              '/&__back__='.$this->getRequest()->GetPath();
-          }
+          $uri = new PhutilURI('/phrequent/track/delete/'.
+              $usertime->getObjectPHID().'/');
+          $parameters = array();
+          $parameters['__back__'] = $back_uri;
+          $parameters['__timelog_id__'] = $usertime->getID();
+          $uri->setQueryParams($parameters);
+          $href = $uri->__toString();
+
           $item->addAction(
               id(new PHUIListItemView())
                 ->setIcon('fa-trash')
