@@ -10,6 +10,7 @@ final class PhabricatorPeopleProfileMenuEngine
   const ITEM_TASKS = 'people.tasks';
   const ITEM_COMMITS = 'people.commits';
   const ITEM_REVISIONS = 'people.revisions';
+  const ITEM_TIME =  'people.time';
 
   protected function isMenuEngineConfigurable() {
     return false;
@@ -76,6 +77,9 @@ final class PhabricatorPeopleProfileMenuEngine
       ->setBuiltinKey(self::ITEM_MANAGE)
       ->setMenuItemKey(PhabricatorPeopleManageProfileMenuItem::MENUITEMKEY);
 
+    $items[] = $this->newItem()
+      ->setBuiltinKey(self::ITEM_TIME)
+      ->setMenuItemKey(PhabricatorPeopleTimeProfileMenuItem::MENUITEMKEY);
     return $items;
   }
 
