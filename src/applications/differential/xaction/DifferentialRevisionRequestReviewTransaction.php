@@ -19,6 +19,19 @@ final class DifferentialRevisionRequestReviewTransaction
     }
   }
 
+  protected function getRevisionActionSubmitButtonText(
+    DifferentialRevision $revision) {
+
+    // See PHI975. When the action stack will promote the revision out of
+    // draft, change the button text from "Submit Quietly".
+    if ($revision->isDraft()) {
+      return pht('Publish Revision');
+    }
+
+    return null;
+  }
+
+
   public function getColor() {
     return 'sky';
   }
@@ -37,7 +50,9 @@ final class DifferentialRevisionRequestReviewTransaction
 
   public function applyInternalEffects($object, $value) {
     $status_review = DifferentialRevisionStatus::NEEDS_REVIEW;
-    $object->setModernRevisionStatus($status_review);
+    $object
+      ->setModernRevisionStatus($status_review)
+      ->setShouldBroadcast(true);
   }
 
   protected function validateAction($object, PhabricatorUser $viewer) {
@@ -80,6 +95,14 @@ final class DifferentialRevisionRequestReviewTransaction
       '%s requested review of %s.',
       $this->renderAuthor(),
       $this->renderObject());
+  }
+
+  public function getTransactionTypeForConduit($xaction) {
+    return 'request-review';
+  }
+
+  public function getFieldValuesForConduit($object, $data) {
+    return array();
   }
 
 }

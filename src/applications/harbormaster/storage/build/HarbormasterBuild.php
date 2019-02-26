@@ -4,7 +4,8 @@ final class HarbormasterBuild extends HarbormasterDAO
   implements
     PhabricatorApplicationTransactionInterface,
     PhabricatorPolicyInterface,
-    PhabricatorConduitResultInterface {
+    PhabricatorConduitResultInterface,
+    PhabricatorDestructibleInterface {
 
   protected $buildablePHID;
   protected $buildPlanPHID;
@@ -355,6 +356,35 @@ final class HarbormasterBuild extends HarbormasterDAO
     }
   }
 
+  public function sendMessage(PhabricatorUser $viewer, $command) {
+    // TODO: This should not be an editor transaction, but there are plans to
+    // merge BuildCommand into BuildMessage which should moot this. As this
+    // exists today, it can race against BuildEngine.
+
+    // This is a bogus content source, but this whole flow should be obsolete
+    // soon.
+    $content_source = PhabricatorContentSource::newForSource(
+      PhabricatorConsoleContentSource::SOURCECONST);
+
+    $editor = id(new HarbormasterBuildTransactionEditor())
+      ->setActor($viewer)
+      ->setContentSource($content_source)
+      ->setContinueOnNoEffect(true)
+      ->setContinueOnMissingFields(true);
+
+    $viewer_phid = $viewer->getPHID();
+    if (!$viewer_phid) {
+      $acting_phid = id(new PhabricatorHarbormasterApplication())->getPHID();
+      $editor->setActingAsPHID($acting_phid);
+    }
+
+    $xaction = id(new HarbormasterBuildTransaction())
+      ->setTransactionType(HarbormasterBuildTransaction::TYPE_COMMAND)
+      ->setNewValue($command);
+
+    $editor->applyTransactions($this, array($xaction));
+  }
+
 
 /* -(  PhabricatorApplicationTransactionInterface  )------------------------- */
 
@@ -363,19 +393,8 @@ final class HarbormasterBuild extends HarbormasterDAO
     return new HarbormasterBuildTransactionEditor();
   }
 
-  public function getApplicationTransactionObject() {
-    return $this;
-  }
-
   public function getApplicationTransactionTemplate() {
     return new HarbormasterBuildTransaction();
-  }
-
-  public function willRenderTimeline(
-    PhabricatorApplicationTransactionView $timeline,
-    AphrontRequest $request) {
-
-    return $timeline;
   }
 
 
@@ -454,5 +473,34 @@ final class HarbormasterBuild extends HarbormasterDAO
         ->setAttachmentKey('querybuilds'),
     );
   }
+
+
+/* -(  PhabricatorDestructibleInterface  )----------------------------------- */
+
+  public function destroyObjectPermanently(
+    PhabricatorDestructionEngine $engine) {
+    $viewer = $engine->getViewer();
+
+    $this->openTransaction();
+      $targets = id(new HarbormasterBuildTargetQuery())
+        ->setViewer($viewer)
+        ->withBuildPHIDs(array($this->getPHID()))
+        ->execute();
+      foreach ($targets as $target) {
+        $engine->destroyObject($target);
+      }
+
+      $messages = id(new HarbormasterBuildMessageQuery())
+        ->setViewer($viewer)
+        ->withReceiverPHIDs(array($this->getPHID()))
+        ->execute();
+      foreach ($messages as $message) {
+        $engine->destroyObject($message);
+      }
+
+      $this->delete();
+    $this->saveTransaction();
+  }
+
 
 }

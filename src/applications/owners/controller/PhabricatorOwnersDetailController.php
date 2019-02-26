@@ -65,13 +65,13 @@ final class PhabricatorOwnersDetailController
 
     $commit_views = array();
 
-    $commit_uri = id(new PhutilURI('/diffusion/commit/'))
-      ->setQueryParams(
-        array(
-          'package' => $package->getPHID(),
-        ));
+    $params = array(
+      'package' => $package->getPHID(),
+    );
 
-    $status_concern = PhabricatorAuditCommitStatusConstants::CONCERN_RAISED;
+    $commit_uri = new PhutilURI('/diffusion/commit/', $params);
+
+    $status_concern = DiffusionCommitAuditStatus::CONCERN_RAISED;
 
     $attention_commits = id(new DiffusionCommitQuery())
       ->setViewer($request->getUser())
@@ -194,12 +194,18 @@ final class PhabricatorOwnersDetailController
     $name = idx($spec, 'name', $auto);
     $view->addProperty(pht('Auto Review'), $name);
 
-    if ($package->getAuditingEnabled()) {
-      $auditing = pht('Enabled');
+    $rule = $package->newAuditingRule();
+    $view->addProperty(pht('Auditing'), $rule->getDisplayName());
+
+    $ignored = $package->getIgnoredPathAttributes();
+    $ignored = array_keys($ignored);
+    if ($ignored) {
+      $ignored = implode(', ', $ignored);
     } else {
-      $auditing = pht('Disabled');
+      $ignored = phutil_tag('em', array(), pht('None'));
     }
-    $view->addProperty(pht('Auditing'), $auditing);
+
+    $view->addProperty(pht('Ignored Attributes'), $ignored);
 
     $description = $package->getDescription();
     if (strlen($description)) {

@@ -45,6 +45,8 @@ final class PhabricatorFilesConfigOptions
       'video/ogg' => 'video/ogg',
       'video/webm' => 'video/webm',
       'video/quicktime' => 'video/quicktime',
+
+      'application/pdf' => 'application/pdf',
     );
 
     $image_default = array(
@@ -195,11 +197,6 @@ final class PhabricatorFilesConfigOptions
             "Set this to a valid Amazon S3 bucket to store files there. You ".
             "must also configure S3 access keys in the 'Amazon Web Services' ".
             "group.")),
-     $this->newOption(
-        'metamta.files.subject-prefix',
-        'string',
-        '[File]')
-        ->setDescription(pht('Subject prefix for Files email.')),
      $this->newOption('files.enable-imagemagick', 'bool', false)
        ->setBoolOptions(
          array(

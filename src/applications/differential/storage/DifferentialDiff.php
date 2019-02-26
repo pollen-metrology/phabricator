@@ -230,16 +230,13 @@ final class DifferentialDiff
     }
     $diff->setLineCount($lines);
 
-    $parser = new DifferentialChangesetParser();
-    $changesets = $parser->detectCopiedCode(
-      $diff->getChangesets(),
-      $min_width = 30,
-      $min_lines = 3);
-    $diff->attachChangesets($changesets);
+    $changesets = $diff->getChangesets();
+
+    id(new DifferentialChangesetEngine())
+      ->rebuildChangesets($changesets);
 
     return $diff;
   }
-
 
   public function getDiffDict() {
     $dict = array(
@@ -390,9 +387,10 @@ final class DifferentialDiff
       return array();
     }
 
-    $unit = id(new HarbormasterBuildUnitMessage())->loadAllWhere(
-      'buildTargetPHID IN (%Ls)',
-      $target_phids);
+    $unit = id(new HarbormasterBuildUnitMessageQuery())
+      ->setViewer($viewer)
+      ->withBuildTargetPHIDs($target_phids)
+      ->execute();
 
     $map = array();
     foreach ($unit as $message) {
@@ -509,10 +507,6 @@ final class DifferentialDiff
     return null;
   }
 
-  public function getHarbormasterPublishablePHID() {
-    return $this->getHarbormasterContainerPHID();
-  }
-
   public function getBuildVariables() {
     $results = array();
 
@@ -555,6 +549,10 @@ final class DifferentialDiff
       'repository.staging.ref' =>
         pht('The ref name for this change in the staging repository.'),
     );
+  }
+
+  public function newBuildableEngine() {
+    return new DifferentialBuildableEngine();
   }
 
 
@@ -702,19 +700,8 @@ final class DifferentialDiff
     return new DifferentialDiffEditor();
   }
 
-  public function getApplicationTransactionObject() {
-    return $this;
-  }
-
   public function getApplicationTransactionTemplate() {
     return new DifferentialDiffTransaction();
-  }
-
-  public function willRenderTimeline(
-    PhabricatorApplicationTransactionView $timeline,
-    AphrontRequest $request) {
-
-    return $timeline;
   }
 
 
@@ -815,8 +802,10 @@ final class DifferentialDiff
   }
 
   public function getConduitSearchAttachments() {
-    return array();
+    return array(
+      id(new DifferentialCommitsSearchEngineAttachment())
+        ->setAttachmentKey('commits'),
+    );
   }
-
 
 }

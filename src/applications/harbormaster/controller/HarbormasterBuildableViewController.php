@@ -3,6 +3,10 @@
 final class HarbormasterBuildableViewController
   extends HarbormasterController {
 
+  public function shouldAllowPublic() {
+    return true;
+  }
+
   public function handleRequest(AphrontRequest $request) {
     $viewer = $this->getViewer();
 
@@ -308,13 +312,14 @@ final class HarbormasterBuildableViewController
       'buildTargetPHID IN (%Ls)',
       $target_phids);
 
-    $unit_data = id(new HarbormasterBuildUnitMessage())->loadAllWhere(
-      'buildTargetPHID IN (%Ls)',
-      $target_phids);
+    $unit_data = id(new HarbormasterBuildUnitMessageQuery())
+      ->setViewer($viewer)
+      ->withBuildTargetPHIDs($target_phids)
+      ->execute();
 
     if ($lint_data) {
       $lint_table = id(new HarbormasterLintPropertyView())
-        ->setUser($viewer)
+        ->setViewer($viewer)
         ->setLimit(10)
         ->setLintMessages($lint_data);
 
@@ -339,6 +344,7 @@ final class HarbormasterBuildableViewController
 
     if ($unit_data) {
       $unit = id(new HarbormasterUnitSummaryView())
+        ->setViewer($viewer)
         ->setBuildable($buildable)
         ->setUnitMessages($unit_data)
         ->setShowViewAll(true)
@@ -349,7 +355,5 @@ final class HarbormasterBuildableViewController
 
     return array($lint, $unit);
   }
-
-
 
 }

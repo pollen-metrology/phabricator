@@ -193,15 +193,12 @@ return array(
     'phabricator-drag-and-drop-file-upload',
     'phabricator-shaped-request',
 
-    'javelin-behavior-differential-feedback-preview',
     'javelin-behavior-differential-populate',
     'javelin-behavior-differential-diff-radios',
     'javelin-behavior-aphront-drag-and-drop-textarea',
     'javelin-behavior-phabricator-object-selector',
     'javelin-behavior-repository-crossreference',
-    'javelin-behavior-load-blame',
 
-    'javelin-behavior-differential-user-select',
     'javelin-behavior-aphront-more',
 
     'phabricator-diff-inline',
@@ -223,9 +220,5 @@ return array(
     'javelin-behavior-maniphest-batch-selector',
     'javelin-behavior-maniphest-subpriority-editor',
     'javelin-behavior-maniphest-list-editor',
-  ),
-  'darkconsole.pkg.js' => array(
-    'javelin-behavior-dark-console',
-    'javelin-behavior-error-log',
   ),
 );

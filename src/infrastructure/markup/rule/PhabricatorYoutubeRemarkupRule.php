@@ -18,11 +18,21 @@ final class PhabricatorYoutubeRemarkupRule extends PhutilRemarkupRule {
       return $text;
     }
 
-    $params = $uri->getQueryParams();
-    $v_param = idx($params, 'v');
-    if (!strlen($v_param)) {
+    $v_params = array();
+
+    $params = $uri->getQueryParamsAsPairList();
+    foreach ($params as $pair) {
+      list($k, $v) = $pair;
+      if ($k === 'v') {
+        $v_params[] = $v;
+      }
+    }
+
+    if (count($v_params) !== 1) {
       return $text;
     }
+
+    $v_param = head($v_params);
 
     $text_mode = $this->getEngine()->isTextMode();
     $mail_mode = $this->getEngine()->isHTMLMailMode();
@@ -50,6 +60,11 @@ final class PhabricatorYoutubeRemarkupRule extends PhutilRemarkupRule {
         ''));
 
     return $this->getEngine()->storeText($iframe);
+  }
+
+  public function didMarkupText() {
+    CelerityAPI::getStaticResourceResponse()
+      ->addContentSecurityPolicyURI('frame-src', 'https://www.youtube.com/');
   }
 
 }

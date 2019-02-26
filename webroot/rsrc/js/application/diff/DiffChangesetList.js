@@ -70,13 +70,13 @@ JX.install('DiffChangesetList', {
     var onrangedown = JX.bind(this, this._ifawake, this._onrangedown);
     JX.Stratcom.listen(
       'mousedown',
-      ['differential-changeset', 'tag:th'],
+      ['differential-changeset', 'tag:td'],
       onrangedown);
 
     var onrangemove = JX.bind(this, this._ifawake, this._onrangemove);
     JX.Stratcom.listen(
       ['mouseover', 'mouseout'],
-      ['differential-changeset', 'tag:th'],
+      ['differential-changeset', 'tag:td'],
       onrangemove);
 
     var onrangeup = JX.bind(this, this._ifawake, this._onrangeup);
@@ -89,7 +89,8 @@ JX.install('DiffChangesetList', {
   properties: {
     translations: null,
     inlineURI: null,
-    inlineListURI: null
+    inlineListURI: null,
+    isStandalone: false
   },
 
   members: {
@@ -149,6 +150,12 @@ JX.install('DiffChangesetList', {
       this._initialized = true;
       var pht = this.getTranslations();
 
+      // We may be viewing the normal "/D123" view (with all the changesets)
+      // or the standalone view (with just one changeset). In the standalone
+      // view, some options (like jumping to next or previous file) do not
+      // make sense and do not function.
+      var standalone = this.getIsStandalone();
+
       var label;
 
       label = pht('Jump to next change.');
@@ -157,11 +164,13 @@ JX.install('DiffChangesetList', {
       label = pht('Jump to previous change.');
       this._installJumpKey('k', label, -1);
 
-      label = pht('Jump to next file.');
-      this._installJumpKey('J', label, 1, 'file');
+      if (!standalone) {
+        label = pht('Jump to next file.');
+        this._installJumpKey('J', label, 1, 'file');
 
-      label = pht('Jump to previous file.');
-      this._installJumpKey('K', label, -1, 'file');
+        label = pht('Jump to previous file.');
+        this._installJumpKey('K', label, -1, 'file');
+      }
 
       label = pht('Jump to next inline comment.');
       this._installJumpKey('n', label, 1, 'comment');
@@ -176,11 +185,13 @@ JX.install('DiffChangesetList', {
         'Jump to previous inline comment, including collapsed comments.');
       this._installJumpKey('P', label, -1, 'comment', true);
 
-      label = pht('Hide or show the current file.');
-      this._installKey('h', label, this._onkeytogglefile);
+      if (!standalone) {
+        label = pht('Hide or show the current file.');
+        this._installKey('h', label, this._onkeytogglefile);
 
-      label = pht('Jump to the table of contents.');
-      this._installKey('t', label, this._ontoc);
+        label = pht('Jump to the table of contents.');
+        this._installKey('t', label, this._ontoc);
+      }
 
       label = pht('Reply to selected inline comment or change.');
       this._installKey('r', label, JX.bind(this, this._onkeyreply, false));
@@ -349,7 +360,7 @@ JX.install('DiffChangesetList', {
           while (row) {
             var header = row.firstChild;
             while (header) {
-              if (JX.DOM.isType(header, 'th')) {
+              if (this.getLineNumberFromHeader(header)) {
                 if (header.className.indexOf('old') !== -1) {
                   old_list.push(header);
                 } else if (header.className.indexOf('new') !== -1) {
@@ -1235,12 +1246,24 @@ JX.install('DiffChangesetList', {
       return changeset.getInlineForRow(inline_row);
     },
 
-    getLineNumberFromHeader: function(th) {
-      try {
-        return parseInt(th.id.match(/^C\d+[ON]L(\d+)$/)[1], 10);
-      } catch (x) {
+    getLineNumberFromHeader: function(node) {
+      var n = parseInt(node.getAttribute('data-n'));
+
+      if (!n) {
         return null;
       }
+
+      // If this is a line number that's part of a row showing more context,
+      // we don't want to let users leave inlines here.
+
+      try {
+        JX.DOM.findAbove(node, 'tr', 'context-target');
+        return null;
+      } catch (ex) {
+        // Ignore.
+      }
+
+      return n;
     },
 
     getDisplaySideFromHeader: function(th) {
@@ -1250,7 +1273,10 @@ JX.install('DiffChangesetList', {
     _onrangedown: function(e) {
       // NOTE: We're allowing "mousedown" from a touch event through so users
       // can leave inlines on a single line.
-      if (e.isRightButton()) {
+
+      // See PHI985. We want to exclude both right-mouse and middle-mouse
+      // clicks from continuing.
+      if (!e.isLeftButton()) {
         return;
       }
 
@@ -1285,7 +1311,7 @@ JX.install('DiffChangesetList', {
     },
 
     _updateRange: function(target, is_out) {
-      // Don't update the range if this "<th />" doesn't correspond to a line
+      // Don't update the range if this target doesn't correspond to a line
       // number. For instance, this may be a dead line number, like the empty
       // line numbers on the left hand side of a newly added file.
       var number = this.getLineNumberFromHeader(target);
@@ -1381,6 +1407,7 @@ JX.install('DiffChangesetList', {
       var changeset = this._getVisibleChangeset();
 
       if (!changeset) {
+        this._bannerChangeset = null;
         JX.DOM.remove(node);
         return;
       }
@@ -1650,9 +1677,12 @@ JX.install('DiffChangesetList', {
 
     _getMenuButton: function() {
       if (!this._menuButton) {
+        var pht = this.getTranslations();
+
         var button = new JX.PHUIXButtonView()
           .setIcon('fa-bars')
-          .setButtonType(JX.PHUIXButtonView.BUTTONTYPE_SIMPLE);
+          .setButtonType(JX.PHUIXButtonView.BUTTONTYPE_SIMPLE)
+          .setAuralLabel(pht('Display Options'));
 
         var dropdown = new JX.PHUIXDropdownMenu(button.getNode());
         this._menuItems = {};
@@ -1690,8 +1720,6 @@ JX.install('DiffChangesetList', {
         }
 
         dropdown.listen('open', JX.bind(this, this._ondropdown));
-
-        var pht = this.getTranslations();
 
         if (this.getInlineListURI()) {
           list.addItem(

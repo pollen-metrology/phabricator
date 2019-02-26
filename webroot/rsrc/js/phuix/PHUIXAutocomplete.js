@@ -185,7 +185,19 @@ JX.install('PHUIXAutocomplete', {
           .getNode();
       }
 
-      map.display = [icon, map.displayName];
+      var dot;
+      if (map.availabilityColor) {
+        dot = JX.$N(
+          'span',
+          {
+            className: 'phui-tag-dot phui-tag-color-' + map.availabilityColor
+          });
+      }
+
+      var display = JX.$N('span', {}, [icon, dot, map.displayName]);
+      JX.DOM.alterClass(display, 'tokenizer-result-closed', !!map.closed);
+
+      map.display = display;
 
       return map;
     },

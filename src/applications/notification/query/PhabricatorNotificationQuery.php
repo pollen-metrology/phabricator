@@ -53,13 +53,13 @@ final class PhabricatorNotificationQuery
 
     $data = queryfx_all(
       $conn,
-      'SELECT story.*, notif.hasViewed FROM %T notif
-         JOIN %T story ON notif.chronologicalKey = story.chronologicalKey
+      'SELECT story.*, notif.hasViewed FROM %R notif
+         JOIN %R story ON notif.chronologicalKey = story.chronologicalKey
          %Q
          ORDER BY notif.chronologicalKey DESC
          %Q',
-      $notification_table->getTableName(),
-      $story_table->getTableName(),
+      $notification_table,
+      $story_table,
       $this->buildWhereClause($conn),
       $this->buildLimitClause($conn));
 
@@ -76,31 +76,41 @@ final class PhabricatorNotificationQuery
     return $stories;
   }
 
-  protected function buildWhereClause(AphrontDatabaseConnection $conn_r) {
-    $where = array();
+  protected function buildWhereClauseParts(AphrontDatabaseConnection $conn) {
+    $where = parent::buildWhereClauseParts($conn);
 
     if ($this->userPHIDs !== null) {
       $where[] = qsprintf(
-        $conn_r,
+        $conn,
         'notif.userPHID IN (%Ls)',
         $this->userPHIDs);
     }
 
     if ($this->unread !== null) {
       $where[] = qsprintf(
-        $conn_r,
+        $conn,
         'notif.hasViewed = %d',
         (int)!$this->unread);
     }
 
-    if ($this->keys) {
+    if ($this->keys !== null) {
       $where[] = qsprintf(
-        $conn_r,
+        $conn,
         'notif.chronologicalKey IN (%Ls)',
         $this->keys);
     }
 
-    return $this->formatWhereClause($where);
+    return $where;
+  }
+
+  protected function willFilterPage(array $stories) {
+    foreach ($stories as $key => $story) {
+      if (!$story->isVisibleInNotifications()) {
+        unset($stories[$key]);
+      }
+    }
+
+    return $stories;
   }
 
   protected function getResultCursor($item) {

@@ -38,7 +38,7 @@ abstract class AlmanacController
         ));
 
     $builtins = $object->getAlmanacPropertyFieldSpecifications();
-    $defaults = mpull($builtins, null, 'getValueForTransaction');
+    $defaults = mpull($builtins, 'getValueForTransaction');
 
     // Sort fields so builtin fields appear first, then fields are ordered
     // alphabetically.
@@ -65,25 +65,20 @@ abstract class AlmanacController
       $value = $property->getFieldValue();
 
       $is_builtin = isset($builtins[$key]);
+      $is_persistent = (bool)$property->getID();
 
-      $delete_uri = id(new PhutilURI($delete_base))
-        ->setQueryParams(
-          array(
-            'key' => $key,
-            'objectPHID' => $object->getPHID(),
-          ));
+      $params = array(
+        'key' => $key,
+        'objectPHID' => $object->getPHID(),
+      );
 
-      $edit_uri = id(new PhutilURI($edit_base))
-        ->setQueryParams(
-          array(
-            'key' => $key,
-            'objectPHID' => $object->getPHID(),
-          ));
+      $delete_uri = new PhutilURI($delete_base, $params);
+      $edit_uri = new PhutilURI($edit_base, $params);
 
       $delete = javelin_tag(
         'a',
         array(
-          'class' => ($can_edit
+          'class' => (($can_edit && $is_persistent)
             ? 'button button-grey small'
             : 'button button-grey small disabled'),
           'sigil' => 'workflow',
@@ -142,7 +137,7 @@ abstract class AlmanacController
 
     $phid = $object->getPHID();
     $add_uri = id(new PhutilURI($edit_base))
-      ->setQueryParam('objectPHID', $object->getPHID());
+      ->replaceQueryParam('objectPHID', $object->getPHID());
 
     $can_edit = PhabricatorPolicyFilter::hasCapability(
       $viewer,

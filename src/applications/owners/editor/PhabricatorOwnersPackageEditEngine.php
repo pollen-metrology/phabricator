@@ -140,12 +140,8 @@ EOTEXT
         ->setTransactionType(
           PhabricatorOwnersPackageAuditingTransaction::TRANSACTIONTYPE)
         ->setIsCopyable(true)
-        ->setValue($object->getAuditingEnabled())
-        ->setOptions(
-          array(
-            '' => pht('Disabled'),
-            '1' => pht('Enabled'),
-          )),
+        ->setValue($object->getAuditingState())
+        ->setOptions(PhabricatorOwnersAuditRule::newSelectControlMap()),
       id(new PhabricatorRemarkupEditField())
         ->setKey('description')
         ->setLabel(pht('Description'))
@@ -159,13 +155,24 @@ EOTEXT
         ->setDescription(pht('Archive or enable the package.'))
         ->setTransactionType(
           PhabricatorOwnersPackageStatusTransaction::TRANSACTIONTYPE)
-        ->setIsConduitOnly(true)
+        ->setIsFormField(false)
         ->setValue($object->getStatus())
         ->setOptions($object->getStatusNameMap()),
+      id(new PhabricatorCheckboxesEditField())
+        ->setKey('ignored')
+        ->setLabel(pht('Ignored Attributes'))
+        ->setDescription(pht('Ignore paths with any of these attributes.'))
+        ->setTransactionType(
+          PhabricatorOwnersPackageIgnoredTransaction::TRANSACTIONTYPE)
+        ->setValue(array_keys($object->getIgnoredPathAttributes()))
+        ->setOptions(
+          array(
+            'generated' => pht('Ignore generated files (review only).'),
+          )),
       id(new PhabricatorConduitEditField())
         ->setKey('paths.set')
         ->setLabel(pht('Paths'))
-        ->setIsConduitOnly(true)
+        ->setIsFormField(false)
         ->setTransactionType(
           PhabricatorOwnersPackagePathsTransaction::TRANSACTIONTYPE)
         ->setConduitDescription(

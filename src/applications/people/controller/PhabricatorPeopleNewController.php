@@ -7,6 +7,11 @@ final class PhabricatorPeopleNewController
     $type = $request->getURIData('type');
     $admin = $request->getUser();
 
+    id(new PhabricatorAuthSessionEngine())->requireHighSecuritySession(
+      $admin,
+      $request,
+      $this->getApplicationURI());
+
     $is_bot = false;
     $is_list = false;
     switch ($type) {
@@ -102,8 +107,13 @@ final class PhabricatorPeopleNewController
               ->makeMailingListUser($user, true);
           }
 
-          if ($welcome_checked && !$is_bot && !$is_list) {
-            $user->sendWelcomeEmail($admin);
+          if ($welcome_checked) {
+            $welcome_engine = id(new PhabricatorPeopleWelcomeMailEngine())
+              ->setSender($admin)
+              ->setRecipient($user);
+            if ($welcome_engine->canSendMail()) {
+              $welcome_engine->sendMail();
+            }
           }
 
           $response = id(new AphrontRedirectResponse())

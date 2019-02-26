@@ -234,14 +234,6 @@ EOREMARKUP
       $this->newOption('phabricator.cache-namespace', 'string', 'phabricator')
         ->setLocked(true)
         ->setDescription(pht('Cache namespace.')),
-      $this->newOption('phabricator.allow-email-users', 'bool', false)
-        ->setBoolOptions(
-          array(
-            pht('Allow'),
-            pht('Disallow'),
-          ))
-        ->setDescription(
-           pht('Allow non-members to interact with tasks over email.')),
       $this->newOption('phabricator.silent', 'bool', false)
         ->setLocked(true)
         ->setBoolOptions(
@@ -268,24 +260,24 @@ EOREMARKUP
       if ($protocol !== 'http' && $protocol !== 'https') {
         throw new PhabricatorConfigValidationException(
           pht(
-            "Config option '%s' is invalid. The URI must start with ".
-            "%s' or '%s'.",
+            'Config option "%s" is invalid. The URI must start with '.
+            '"%s" or "%s".',
+            $key,
             'http://',
-            'https://',
-            $key));
+            'https://'));
       }
 
       $domain = $uri->getDomain();
       if (strpos($domain, '.') === false) {
         throw new PhabricatorConfigValidationException(
           pht(
-            "Config option '%s' is invalid. The URI must contain a dot ".
-            "('%s'), like '%s', not just a bare name like '%s'. Some web ".
-            "browsers will not set cookies on domains with no TLD.",
+            'Config option "%s" is invalid. The URI must contain a dot '.
+            '("%s"), like "%s", not just a bare name like "%s". Some web '.
+            'browsers will not set cookies on domains with no TLD.',
+            $key,
             '.',
             'http://example.com/',
-            'http://example/',
-            $key));
+            'http://example/'));
       }
 
       $path = $uri->getPath();

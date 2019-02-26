@@ -19,10 +19,27 @@ final class PhabricatorProjectSearchEngine
   }
 
   protected function buildCustomSearchFields() {
+    $subtype_map = id(new PhabricatorProject())->newEditEngineSubtypeMap();
+    $hide_subtypes = ($subtype_map->getCount() == 1);
+
     return array(
       id(new PhabricatorSearchTextField())
         ->setLabel(pht('Name'))
-        ->setKey('name'),
+        ->setKey('name')
+        ->setDescription(
+          pht(
+            '(Deprecated.) Search for projects with a given name or '.
+            'hashtag using tokenizer/datasource query matching rules. This '.
+            'is deprecated in favor of the more powerful "query" '.
+            'constraint.')),
+      id(new PhabricatorSearchStringListField())
+        ->setLabel(pht('Slugs'))
+        ->setIsHidden(true)
+        ->setKey('slugs')
+        ->setDescription(
+          pht(
+            'Search for projects with particular slugs. (Slugs are the same '.
+            'as project hashtags.)')),
       id(new PhabricatorUsersSearchField())
         ->setLabel(pht('Members'))
         ->setKey('memberPHIDs')
@@ -48,6 +65,14 @@ final class PhabricatorProjectSearchEngine
           pht(
             'Pass true to find only milestones, or false to omit '.
             'milestones.')),
+      id(new PhabricatorSearchDatasourceField())
+        ->setLabel(pht('Subtypes'))
+        ->setKey('subtypes')
+        ->setAliases(array('subtype'))
+        ->setDescription(
+          pht('Search for projects with given subtypes.'))
+        ->setDatasource(new PhabricatorProjectSubtypeDatasource())
+        ->setIsHidden($hide_subtypes),
       id(new PhabricatorSearchCheckboxesField())
         ->setLabel(pht('Icons'))
         ->setKey('icons')
@@ -79,6 +104,10 @@ final class PhabricatorProjectSearchEngine
     if (strlen($map['name'])) {
       $tokens = PhabricatorTypeaheadDatasource::tokenizeString($map['name']);
       $query->withNameTokens($tokens);
+    }
+
+    if ($map['slugs']) {
+      $query->withSlugs($map['slugs']);
     }
 
     if ($map['memberPHIDs']) {
@@ -114,6 +143,10 @@ final class PhabricatorProjectSearchEngine
 
     if ($map['ancestorPHIDs']) {
       $query->withAncestorProjectPHIDs($map['ancestorPHIDs']);
+    }
+
+    if ($map['subtypes']) {
+      $query->withSubtypes($map['subtypes']);
     }
 
     return $query;

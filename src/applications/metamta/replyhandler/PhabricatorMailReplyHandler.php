@@ -67,38 +67,7 @@ abstract class PhabricatorMailReplyHandler extends Phobject {
     PhabricatorMetaMTAReceivedMail $mail);
 
   public function processEmail(PhabricatorMetaMTAReceivedMail $mail) {
-    $this->dropEmptyMail($mail);
-
     return $this->receiveEmail($mail);
-  }
-
-  private function dropEmptyMail(PhabricatorMetaMTAReceivedMail $mail) {
-    $body = $mail->getCleanTextBody();
-    $attachments = $mail->getAttachments();
-
-    if (strlen($body) || $attachments) {
-      return;
-    }
-
-     // Only send an error email if the user is talking to just Phabricator.
-     // We can assume if there is only one "To" address it is a Phabricator
-     // address since this code is running and everything.
-    $is_direct_mail = (count($mail->getToAddresses()) == 1) &&
-                      (count($mail->getCCAddresses()) == 0);
-
-    if ($is_direct_mail) {
-      $status_code = MetaMTAReceivedMailStatus::STATUS_EMPTY;
-    } else {
-      $status_code = MetaMTAReceivedMailStatus::STATUS_EMPTY_IGNORED;
-    }
-
-    throw new PhabricatorMetaMTAReceivedMailProcessingException(
-      $status_code,
-      pht(
-        'Your message does not contain any body text or attachments, so '.
-        'Phabricator can not do anything useful with it. Make sure comment '.
-        'text appears at the top of your message: quoted replies, inline '.
-        'text, and signatures are discarded and ignored.'));
   }
 
   public function supportsPrivateReplies() {
@@ -136,8 +105,11 @@ abstract class PhabricatorMailReplyHandler extends Phobject {
     // We compute a hash using the object's own PHID to prevent an attacker
     // from blindly interacting with objects that they haven't ever received
     // mail about by just sending to D1@, D2@, etc...
+
+    $mail_key = PhabricatorMetaMTAMailProperties::loadMailKey($receiver);
+
     $hash = PhabricatorObjectMailReceiver::computeMailHash(
-      $receiver->getMailKey(),
+      $mail_key,
       $receiver->getPHID());
 
     $address = "{$prefix}{$receiver_id}+public+{$hash}@{$domain}";
@@ -159,8 +131,11 @@ abstract class PhabricatorMailReplyHandler extends Phobject {
     $receiver = $this->getMailReceiver();
     $receiver_id = $receiver->getID();
     $user_id = $user->getID();
+
+    $mail_key = PhabricatorMetaMTAMailProperties::loadMailKey($receiver);
+
     $hash = PhabricatorObjectMailReceiver::computeMailHash(
-      $receiver->getMailKey(),
+      $mail_key,
       $user->getPHID());
     $domain = $this->getReplyHandlerDomain();
 

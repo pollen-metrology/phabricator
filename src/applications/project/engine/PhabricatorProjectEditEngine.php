@@ -51,7 +51,11 @@ final class PhabricatorProjectEditEngine
   }
 
   protected function newEditableObject() {
-    return PhabricatorProject::initializeNewProject($this->getViewer());
+    $parent = nonempty($this->parentProject, $this->milestoneProject);
+
+    return PhabricatorProject::initializeNewProject(
+      $this->getViewer(),
+      $parent);
   }
 
   protected function newObjectQuery() {
@@ -112,6 +116,7 @@ final class PhabricatorProjectEditEngine
       PhabricatorTransactions::TYPE_VIEW_POLICY,
       PhabricatorTransactions::TYPE_EDIT_POLICY,
       PhabricatorTransactions::TYPE_JOIN_POLICY,
+      PhabricatorTransactions::TYPE_SPACE,
       PhabricatorProjectIconTransaction::TRANSACTIONTYPE,
       PhabricatorProjectColorTransaction::TRANSACTIONTYPE,
     );
@@ -282,13 +287,13 @@ final class PhabricatorProjectEditEngine
 
       // Show this on the web UI when creating a project, but not when editing
       // one. It is always available via Conduit.
-      $conduit_only = !$this->getIsCreate();
+      $show_field = (bool)$this->getIsCreate();
 
       $members_field = id(new PhabricatorUsersEditField())
         ->setKey('members')
         ->setAliases(array('memberPHIDs'))
         ->setLabel(pht('Initial Members'))
-        ->setIsConduitOnly($conduit_only)
+        ->setIsFormField($show_field)
         ->setUseEdgeTransactions(true)
         ->setTransactionType(PhabricatorTransactions::TYPE_EDGE)
         ->setMetadataValue(

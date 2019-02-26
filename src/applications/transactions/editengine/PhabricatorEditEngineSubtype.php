@@ -11,6 +11,9 @@ final class PhabricatorEditEngineSubtype
   private $icon;
   private $tagText;
   private $color;
+  private $childSubtypes = array();
+  private $childIdentifiers = array();
+  private $fieldConfiguration = array();
 
   public function setKey($key) {
     $this->key = $key;
@@ -57,6 +60,24 @@ final class PhabricatorEditEngineSubtype
     return $this->color;
   }
 
+  public function setChildSubtypes(array $child_subtypes) {
+    $this->childSubtypes = $child_subtypes;
+    return $this;
+  }
+
+  public function getChildSubtypes() {
+    return $this->childSubtypes;
+  }
+
+  public function setChildFormIdentifiers(array $child_identifiers) {
+    $this->childIdentifiers = $child_identifiers;
+    return $this;
+  }
+
+  public function getChildFormIdentifiers() {
+    return $this->childIdentifiers;
+  }
+
   public function hasTagView() {
     return (bool)strlen($this->getTagText());
   }
@@ -72,6 +93,17 @@ final class PhabricatorEditEngineSubtype
     }
 
     return $view;
+  }
+
+  public function setSubtypeFieldConfiguration(
+    $subtype_key,
+    array $configuration) {
+    $this->fieldConfiguration[$subtype_key] = $configuration;
+    return $this;
+  }
+
+  public function getSubtypeFieldConfiguration($subtype_key) {
+    return idx($this->fieldConfiguration, $subtype_key);
   }
 
   public static function validateSubtypeKey($subtype) {
@@ -118,6 +150,8 @@ final class PhabricatorEditEngineSubtype
           'tag' => 'optional string',
           'color' => 'optional string',
           'icon' => 'optional string',
+          'children' => 'optional map<string, wild>',
+          'fields' => 'optional map<string, wild>',
         ));
 
       $key = $value['key'];
@@ -140,6 +174,39 @@ final class PhabricatorEditEngineSubtype
             'Subtype configuration is invalid: subtype with key "%s" has '.
             'no name. Subtypes must have a name.',
             $key));
+      }
+
+      $children = idx($value, 'children');
+      if ($children) {
+        PhutilTypeSpec::checkMap(
+          $children,
+          array(
+            'subtypes' => 'optional list<string>',
+            'forms' => 'optional list<string|int>',
+          ));
+
+        $child_subtypes = idx($children, 'subtypes');
+        $child_forms = idx($children, 'forms');
+
+        if ($child_subtypes && $child_forms) {
+          throw new Exception(
+            pht(
+              'Subtype configuration is invalid: subtype with key "%s" '.
+              'specifies both child subtypes and child forms. Specify one '.
+              'or the other, but not both.'));
+        }
+      }
+
+      $fields = idx($value, 'fields');
+      if ($fields) {
+        foreach ($fields as $field_key => $configuration) {
+          PhutilTypeSpec::checkMap(
+            $configuration,
+            array(
+              'disabled' => 'optional bool',
+              'name' => 'optional string',
+            ));
+        }
       }
     }
 
@@ -179,10 +246,36 @@ final class PhabricatorEditEngineSubtype
         $subtype->setColor($color);
       }
 
+      $children = idx($entry, 'children', array());
+      $child_subtypes = idx($children, 'subtypes');
+      $child_forms = idx($children, 'forms');
+
+      if ($child_subtypes) {
+        $subtype->setChildSubtypes($child_subtypes);
+      }
+
+      if ($child_forms) {
+        $subtype->setChildFormIdentifiers($child_forms);
+      }
+
+      $field_configurations = idx($entry, 'fields');
+      if ($field_configurations) {
+        foreach ($field_configurations as $field_key => $field_configuration) {
+          $subtype->setSubtypeFieldConfiguration(
+            $field_key,
+            $field_configuration);
+        }
+      }
+
       $map[$key] = $subtype;
     }
 
-    return $map;
+    return new PhabricatorEditEngineSubtypeMap($map);
+  }
+
+  public function newIconView() {
+    return id(new PHUIIconView())
+      ->setIcon($this->getIcon(), $this->getColor());
   }
 
 }

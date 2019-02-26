@@ -31,7 +31,7 @@ final class PhabricatorClusterMailersConfigType
       }
     }
 
-    $adapters = PhabricatorMailImplementationAdapter::getAllAdapters();
+    $adapters = PhabricatorMailAdapter::getAllAdapters();
 
     $map = array();
     foreach ($value as $index => $spec) {
@@ -43,6 +43,9 @@ final class PhabricatorClusterMailersConfigType
             'type' => 'string',
             'priority' => 'optional int',
             'options' => 'optional wild',
+            'inbound' => 'optional bool',
+            'outbound' => 'optional bool',
+            'media' => 'optional list<string>',
           ));
       } catch (Exception $ex) {
         throw $this->newException(

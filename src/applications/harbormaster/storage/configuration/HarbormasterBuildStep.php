@@ -100,6 +100,19 @@ final class HarbormasterBuildStep extends HarbormasterDAO
     return ($this->getStepAutoKey() !== null);
   }
 
+  public function willStartBuild(
+    PhabricatorUser $viewer,
+    HarbormasterBuildable $buildable,
+    HarbormasterBuild $build,
+    HarbormasterBuildPlan $plan) {
+    return $this->getStepImplementation()->willStartBuild(
+      $viewer,
+      $buildable,
+      $build,
+      $plan,
+      $this);
+  }
+
 
 /* -(  PhabricatorApplicationTransactionInterface  )------------------------- */
 
@@ -108,19 +121,8 @@ final class HarbormasterBuildStep extends HarbormasterDAO
     return new HarbormasterBuildStepEditor();
   }
 
-  public function getApplicationTransactionObject() {
-    return $this;
-  }
-
   public function getApplicationTransactionTemplate() {
     return new HarbormasterBuildStepTransaction();
-  }
-
-  public function willRenderTimeline(
-    PhabricatorApplicationTransactionView $timeline,
-    AphrontRequest $request) {
-
-    return $timeline;
   }
 
 

@@ -276,6 +276,7 @@ final class DifferentialChangesetViewController extends DifferentialController {
       ->setDiff($diff)
       ->setTitle(pht('Standalone View'))
       ->setBackground(PHUIObjectBoxView::BLUE_PROPERTY)
+      ->setIsStandalone(true)
       ->setParser($parser);
 
     if ($revision_id) {
@@ -419,15 +420,17 @@ final class DifferentialChangesetViewController extends DifferentialController {
   }
 
   private function loadCoverage(DifferentialChangeset $changeset) {
+    $viewer = $this->getViewer();
+
     $target_phids = $changeset->getDiff()->getBuildTargetPHIDs();
     if (!$target_phids) {
       return null;
     }
 
-    $unit = id(new HarbormasterBuildUnitMessage())->loadAllWhere(
-      'buildTargetPHID IN (%Ls)',
-      $target_phids);
-
+    $unit = id(new HarbormasterBuildUnitMessageQuery())
+      ->setViewer($viewer)
+      ->withBuildTargetPHIDs($target_phids)
+      ->execute();
     if (!$unit) {
       return null;
     }

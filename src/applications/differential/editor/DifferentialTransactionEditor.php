@@ -7,10 +7,12 @@ final class DifferentialTransactionEditor
   private $isCloseByCommit;
   private $repositoryPHIDOverride = false;
   private $didExpandInlineState = false;
-  private $hasReviewTransaction = false;
-  private $affectedPaths;
   private $firstBroadcast = false;
-  private $wasDraft = false;
+  private $wasBroadcasting;
+  private $isDraftDemotion;
+
+  private $ownersDiff;
+  private $ownersChangesets;
 
   public function getEditorApplicationClass() {
     return 'PhabricatorDifferentialApplication';
@@ -127,17 +129,15 @@ final class DifferentialTransactionEditor
           // built it for us so we don't need to expand it again.
           $this->didExpandInlineState = true;
           break;
-        case DifferentialRevisionAcceptTransaction::TRANSACTIONTYPE:
-        case DifferentialRevisionRejectTransaction::TRANSACTIONTYPE:
-        case DifferentialRevisionResignTransaction::TRANSACTIONTYPE:
-          // If we have a review transaction, we'll skip marking the user
-          // as "Commented" later. This should get cleaner after T10967.
-          $this->hasReviewTransaction = true;
+        case DifferentialRevisionPlanChangesTransaction::TRANSACTIONTYPE:
+          if ($xaction->getMetadataValue('draft.demote')) {
+            $this->isDraftDemotion = true;
+          }
           break;
       }
     }
 
-    $this->wasDraft = $object->isDraft();
+    $this->wasBroadcasting = $object->getShouldBroadcast();
 
     return parent::expandTransactions($object, $xactions);
   }
@@ -154,59 +154,41 @@ final class DifferentialTransactionEditor
 
     $edge_ref_task = DifferentialRevisionHasTaskEdgeType::EDGECONST;
 
-    $is_sticky_accept = PhabricatorEnv::getEnvConfig(
-      'differential.sticky-accept');
-
-    $downgrade_rejects = false;
-    $downgrade_accepts = false;
+    $want_downgrade = array();
+    $must_downgrade = array();
     if ($this->getIsCloseByCommit()) {
       // Never downgrade reviewers when we're closing a revision after a
       // commit.
     } else {
       switch ($xaction->getTransactionType()) {
         case DifferentialRevisionUpdateTransaction::TRANSACTIONTYPE:
-          $downgrade_rejects = true;
-          if (!$is_sticky_accept) {
-            // If "sticky accept" is disabled, also downgrade the accepts.
-            $downgrade_accepts = true;
-          }
+          $want_downgrade[] = DifferentialReviewerStatus::STATUS_ACCEPTED;
+          $want_downgrade[] = DifferentialReviewerStatus::STATUS_REJECTED;
           break;
         case DifferentialRevisionRequestReviewTransaction::TRANSACTIONTYPE:
-          $downgrade_rejects = true;
-          if ((!$is_sticky_accept) ||
-              (!$object->isChangePlanned())) {
-            // If the old state isn't "changes planned", downgrade the accepts.
-            // This exception allows an accepted revision to go through
-            // "Plan Changes" -> "Request Review" and return to "accepted" if
-            // the author didn't update the revision, essentially undoing the
-            // "Plan Changes".
-            $downgrade_accepts = true;
+          if (!$object->isChangePlanned()) {
+            // If the old state isn't "Changes Planned", downgrade the accepts
+            // even if they're sticky.
+
+            // We don't downgrade for "Changes Planned" to allow an author to
+            // undo a "Plan Changes" by immediately following it up with a
+            // "Request Review".
+            $want_downgrade[] = DifferentialReviewerStatus::STATUS_ACCEPTED;
+            $must_downgrade[] = DifferentialReviewerStatus::STATUS_ACCEPTED;
           }
+          $want_downgrade[] = DifferentialReviewerStatus::STATUS_REJECTED;
           break;
       }
     }
 
-    $new_accept = DifferentialReviewerStatus::STATUS_ACCEPTED;
-    $new_reject = DifferentialReviewerStatus::STATUS_REJECTED;
-    $old_accept = DifferentialReviewerStatus::STATUS_ACCEPTED_OLDER;
-    $old_reject = DifferentialReviewerStatus::STATUS_REJECTED_OLDER;
-
-    $downgrade = array();
-    if ($downgrade_accepts) {
-      $downgrade[] = DifferentialReviewerStatus::STATUS_ACCEPTED;
-    }
-
-    if ($downgrade_rejects) {
-      $downgrade[] = DifferentialReviewerStatus::STATUS_REJECTED;
-    }
-
-    if ($downgrade) {
+    if ($want_downgrade) {
       $void_type = DifferentialRevisionVoidTransaction::TRANSACTIONTYPE;
 
       $results[] = id(new DifferentialTransaction())
         ->setTransactionType($void_type)
         ->setIgnoreOnNoEffect(true)
-        ->setNewValue($downgrade);
+        ->setMetadataValue('void.force', $must_downgrade)
+        ->setNewValue($want_downgrade);
     }
 
     $is_commandeer = false;
@@ -265,35 +247,16 @@ final class DifferentialTransactionEditor
         case DifferentialTransaction::TYPE_INLINE:
           $this->didExpandInlineState = true;
 
-          $actor_phid = $this->getActingAsPHID();
-          $actor_is_author = ($object->getAuthorPHID() == $actor_phid);
-          if (!$actor_is_author) {
-            break;
+          $query_template = id(new DifferentialDiffInlineCommentQuery())
+            ->withRevisionPHIDs(array($object->getPHID()));
+
+          $state_xaction = $this->newInlineStateTransaction(
+            $object,
+            $query_template);
+
+          if ($state_xaction) {
+            $results[] = $state_xaction;
           }
-
-          $state_map = PhabricatorTransactions::getInlineStateMap();
-
-          $inlines = id(new DifferentialDiffInlineCommentQuery())
-            ->setViewer($this->getActor())
-            ->withRevisionPHIDs(array($object->getPHID()))
-            ->withFixedStates(array_keys($state_map))
-            ->execute();
-
-          if (!$inlines) {
-            break;
-          }
-
-          $old_value = mpull($inlines, 'getFixedState', 'getPHID');
-          $new_value = array();
-          foreach ($old_value as $key => $state) {
-            $new_value[$key] = $state_map[$state];
-          }
-
-          $results[] = id(new DifferentialTransaction())
-            ->setTransactionType(PhabricatorTransactions::TYPE_INLINESTATE)
-            ->setIgnoreOnNoEffect(true)
-            ->setOldValue($old_value)
-            ->setNewValue($new_value);
           break;
       }
     }
@@ -454,6 +417,11 @@ final class DifferentialTransactionEditor
       // conditions for acceptance. This usually happens after an accepting
       // reviewer resigns or is removed.
       $new_status = DifferentialRevisionStatus::NEEDS_REVIEW;
+    } else if ($was_revision) {
+      // This revision was "Needs Revision", but no longer has any rejecting
+      // reviewers. This usually happens after the last rejecting reviewer
+      // resigns or is removed. Put the revision back in "Needs Review".
+      $new_status = DifferentialRevisionStatus::NEEDS_REVIEW;
     }
 
     if ($new_status === null) {
@@ -505,7 +473,7 @@ final class DifferentialTransactionEditor
     PhabricatorLiskDAO $object,
     array $xactions) {
 
-    if (!$object->shouldBroadcast()) {
+    if (!$object->getShouldBroadcast()) {
       return false;
     }
 
@@ -515,27 +483,42 @@ final class DifferentialTransactionEditor
   protected function shouldSendMail(
     PhabricatorLiskDAO $object,
     array $xactions) {
-
-    if (!$object->shouldBroadcast()) {
-      return false;
-    }
-
     return true;
   }
 
   protected function getMailTo(PhabricatorLiskDAO $object) {
-    $this->requireReviewers($object);
+    if ($object->getShouldBroadcast()) {
+      $this->requireReviewers($object);
 
-    $phids = array();
-    $phids[] = $object->getAuthorPHID();
-    foreach ($object->getReviewers() as $reviewer) {
-      if ($reviewer->isResigned()) {
-        continue;
+      $phids = array();
+      $phids[] = $object->getAuthorPHID();
+      foreach ($object->getReviewers() as $reviewer) {
+        if ($reviewer->isResigned()) {
+          continue;
+        }
+
+        $phids[] = $reviewer->getReviewerPHID();
       }
-
-      $phids[] = $reviewer->getReviewerPHID();
+      return $phids;
     }
-    return $phids;
+
+    // If we're demoting a draft after a build failure, just notify the author.
+    if ($this->isDraftDemotion) {
+      $author_phid = $object->getAuthorPHID();
+      return array(
+        $author_phid,
+      );
+    }
+
+    return array();
+  }
+
+  protected function getMailCC(PhabricatorLiskDAO $object) {
+    if (!$object->getShouldBroadcast()) {
+      return array();
+    }
+
+    return parent::getMailCC($object);
   }
 
   protected function newMailUnexpandablePHIDs(PhabricatorLiskDAO $object) {
@@ -573,14 +556,14 @@ final class DifferentialTransactionEditor
 
     if ($show_lines) {
       $count = new PhutilNumber($object->getLineCount());
-      $action = pht('%s, %s line(s)', $action, $count);
+      $action = pht('%s] [%s', $action, $object->getRevisionScaleGlyphs());
     }
 
     return $action;
   }
 
   protected function getMailSubjectPrefix() {
-    return PhabricatorEnv::getEnvConfig('metamta.differential.subject-prefix');
+    return pht('[Differential]');
   }
 
   protected function getMailThreadID(PhabricatorLiskDAO $object) {
@@ -595,12 +578,13 @@ final class DifferentialTransactionEditor
   }
 
   protected function buildMailTemplate(PhabricatorLiskDAO $object) {
-    $id = $object->getID();
+    $monogram = $object->getMonogram();
     $title = $object->getTitle();
-    $subject = "D{$id}: {$title}";
 
     return id(new PhabricatorMetaMTAMail())
-      ->setSubject($subject);
+      ->setSubject(pht('%s: %s', $monogram, $title))
+      ->setMustEncryptSubject(pht('%s: Revision Updated', $monogram))
+      ->setMustEncryptURI($object->getURI());
   }
 
   protected function getTransactionsForMail(
@@ -623,10 +607,12 @@ final class DifferentialTransactionEditor
 
     $viewer = $this->requireActor();
 
-    $body = new PhabricatorMetaMTAMailBody();
-    $body->setViewer($this->requireActor());
+    $body = id(new PhabricatorMetaMTAMailBody())
+      ->setViewer($viewer);
 
-    $revision_uri = PhabricatorEnv::getProductionURI('/D'.$object->getID());
+    $revision_uri = $object->getURI();
+    $revision_uri = PhabricatorEnv::getProductionURI($revision_uri);
+    $new_uri = $revision_uri.'/new/';
 
     $this->addHeadersAndCommentsToMailBody(
       $body,
@@ -647,19 +633,6 @@ final class DifferentialTransactionEditor
       $this->appendInlineCommentsForMail($object, $inlines, $body);
     }
 
-    $changed_uri = $this->getChangedPriorToCommitURI();
-    if ($changed_uri) {
-      $body->addLinkSection(
-        pht('CHANGED PRIOR TO COMMIT'),
-        $changed_uri);
-    }
-
-    $this->addCustomFieldsToMailBody($body, $object, $xactions);
-
-    $body->addLinkSection(
-      pht('REVISION DETAIL'),
-      $revision_uri);
-
     $update_xaction = null;
     foreach ($xactions as $xaction) {
       switch ($xaction->getTransactionType()) {
@@ -671,7 +644,28 @@ final class DifferentialTransactionEditor
 
     if ($update_xaction) {
       $diff = $this->requireDiff($update_xaction->getNewValue(), true);
+    } else {
+      $diff = null;
+    }
 
+    $changed_uri = $this->getChangedPriorToCommitURI();
+    if ($changed_uri) {
+      $body->addLinkSection(
+        pht('CHANGED PRIOR TO COMMIT'),
+        $changed_uri);
+    }
+
+    $this->addCustomFieldsToMailBody($body, $object, $xactions);
+
+    if (!$this->isFirstBroadcast()) {
+      $body->addLinkSection(pht('CHANGES SINCE LAST ACTION'), $new_uri);
+    }
+
+    $body->addLinkSection(
+      pht('REVISION DETAIL'),
+      $revision_uri);
+
+    if ($update_xaction) {
       $body->addTextSection(
         pht('AFFECTED FILES'),
         $this->renderAffectedFilesForMail($diff));
@@ -685,8 +679,13 @@ final class DifferentialTransactionEditor
       if ($config_inline || $config_attach) {
         $body_limit = PhabricatorEnv::getEnvConfig('metamta.email-body-limit');
 
-        $patch = $this->buildPatchForMail($diff);
-        if ($config_inline) {
+        try {
+          $patch = $this->buildPatchForMail($diff, $body_limit);
+        } catch (ArcanistDiffByteSizeException $ex) {
+          $patch = null;
+        }
+
+        if (($patch !== null) && $config_inline) {
           $lines = substr_count($patch, "\n");
           $bytes = strlen($patch);
 
@@ -709,14 +708,14 @@ final class DifferentialTransactionEditor
           }
         }
 
-        if ($config_attach) {
+        if (($patch !== null) && $config_attach) {
           // See T12033, T11767, and PHI55. This is a crude fix to stop the
           // major concrete problems that lackluster email size limits cause.
           if (strlen($patch) < $body_limit) {
             $name = pht('D%s.%s.patch', $object->getID(), $diff->getID());
             $mime_type = 'text/x-patch; charset=utf-8';
             $body->addAttachment(
-              new PhabricatorMetaMTAAttachment($patch, $name, $mime_type));
+              new PhabricatorMailAttachment($patch, $name, $mime_type));
           }
         }
       }
@@ -855,11 +854,13 @@ final class DifferentialTransactionEditor
       $revert_phids = array();
     }
 
-    $this->setUnmentionablePHIDMap(
-      array_merge(
-        $task_phids,
-        $rev_phids,
-        $revert_phids));
+    // See PHI574. Respect any unmentionable PHIDs which were set on the
+    // Editor by the caller.
+    $unmentionable_map = $this->getUnmentionablePHIDMap();
+    $unmentionable_map += $task_phids;
+    $unmentionable_map += $rev_phids;
+    $unmentionable_map += $revert_phids;
+    $this->setUnmentionablePHIDMap($unmentionable_map);
 
     $result = array();
     foreach ($edges as $type => $specs) {
@@ -877,6 +878,17 @@ final class DifferentialTransactionEditor
     array $inlines,
     PhabricatorMetaMTAMailBody $body) {
 
+    $limit = 100;
+    $limit_note = null;
+    if (count($inlines) > $limit) {
+      $limit_note = pht(
+        '(Showing first %s of %s inline comments.)',
+        new PhutilNumber($limit),
+        phutil_count($inlines));
+
+      $inlines = array_slice($inlines, 0, $limit, true);
+    }
+
     $section = id(new DifferentialInlineCommentMailView())
       ->setViewer($this->getActor())
       ->setInlines($inlines)
@@ -885,6 +897,9 @@ final class DifferentialTransactionEditor
     $header = pht('INLINE COMMENTS');
 
     $section_text = "\n".$section->getPlaintext();
+    if ($limit_note) {
+      $section_text = $limit_note."\n".$section_text;
+    }
 
     $style = array(
       'margin: 6px 0 12px 0;',
@@ -896,6 +911,16 @@ final class DifferentialTransactionEditor
         'style' => implode(' ', $style),
       ),
       $section->getHTML());
+
+    if ($limit_note) {
+      $section_html = array(
+        phutil_tag(
+          'em',
+          array(),
+          $limit_note),
+        $section_html,
+      );
+    }
 
     $body->addPlaintextSection($header, $section_text, false);
     $body->addHTMLSection($header, $section_html);
@@ -971,13 +996,20 @@ final class DifferentialTransactionEditor
       return array();
     }
 
-    if (!$this->affectedPaths) {
+    $diff = $this->ownersDiff;
+    $changesets = $this->ownersChangesets;
+
+    $this->ownersDiff = null;
+    $this->ownersChangesets = null;
+
+    if (!$changesets) {
       return array();
     }
 
-    $packages = PhabricatorOwnersPackage::loadAffectedPackages(
+    $packages = PhabricatorOwnersPackage::loadAffectedPackagesForChangesets(
       $repository,
-      $this->affectedPaths);
+      $diff,
+      $changesets);
     if (!$packages) {
       return array();
     }
@@ -1170,7 +1202,7 @@ final class DifferentialTransactionEditor
 
     // If the object is still a draft, prevent "Send me an email" and other
     // similar rules from acting yet.
-    if (!$object->shouldBroadcast()) {
+    if (!$object->getShouldBroadcast()) {
       $adapter->setForbiddenAction(
         HeraldMailableState::STATECONST,
         DifferentialHeraldStateReasons::REASON_DRAFT);
@@ -1258,9 +1290,12 @@ final class DifferentialTransactionEditor
       $paths[] = $path_prefix.'/'.$changeset->getFilename();
     }
 
-    // Save the affected paths; we'll use them later to query Owners. This
-    // uses the un-expanded paths.
-    $this->affectedPaths = $paths;
+    // If this change affected paths, save the changesets so we can apply
+    // Owners rules to them later.
+    if ($paths) {
+      $this->ownersDiff = $diff;
+      $this->ownersChangesets = $changesets;
+    }
 
     // Mark this as also touching all parent paths, so you can see all pending
     // changes to any file within a directory.
@@ -1298,9 +1333,9 @@ final class DifferentialTransactionEditor
     foreach (array_chunk($sql, 256) as $chunk) {
       queryfx(
         $conn_w,
-        'INSERT INTO %T (repositoryID, pathID, epoch, revisionID) VALUES %Q',
+        'INSERT INTO %T (repositoryID, pathID, epoch, revisionID) VALUES %LQ',
         $table->getTableName(),
-        implode(', ', $chunk));
+        $chunk);
     }
   }
 
@@ -1375,9 +1410,9 @@ final class DifferentialTransactionEditor
     if ($sql) {
       queryfx(
         $conn_w,
-        'INSERT INTO %T (revisionID, type, hash) VALUES %Q',
+        'INSERT INTO %T (revisionID, type, hash) VALUES %LQ',
         ArcanistDifferentialRevisionHash::TABLE_NAME,
-        implode(', ', $sql));
+        $sql);
     }
   }
 
@@ -1402,13 +1437,14 @@ final class DifferentialTransactionEditor
       array('style' => 'font-family: monospace;'), $patch);
   }
 
-  private function buildPatchForMail(DifferentialDiff $diff) {
+  private function buildPatchForMail(DifferentialDiff $diff, $byte_limit) {
     $format = PhabricatorEnv::getEnvConfig('metamta.differential.patch-format');
 
     return id(new DifferentialRawDiffRenderer())
       ->setViewer($this->getActor())
       ->setFormat($format)
       ->setChangesets($diff->getChangesets())
+      ->setByteLimit($byte_limit)
       ->buildPatch();
   }
 
@@ -1426,12 +1462,14 @@ final class DifferentialTransactionEditor
     return array(
       'changedPriorToCommitURI' => $this->changedPriorToCommitURI,
       'firstBroadcast' => $this->firstBroadcast,
+      'isDraftDemotion' => $this->isDraftDemotion,
     );
   }
 
   protected function loadCustomWorkerState(array $state) {
     $this->changedPriorToCommitURI = idx($state, 'changedPriorToCommitURI');
     $this->firstBroadcast = idx($state, 'firstBroadcast');
+    $this->isDraftDemotion = idx($state, 'isDraftDemotion');
     return $this;
   }
 
@@ -1556,9 +1594,41 @@ final class DifferentialTransactionEditor
       $auto_undraft = false;
     }
 
-    if ($object->isDraft() && $auto_undraft) {
-      $active_builds = $this->hasActiveBuilds($object);
-      if (!$active_builds) {
+    $can_promote = false;
+    $can_demote = false;
+
+    // "Draft" revisions can promote to "Review Requested" after builds pass,
+    // or demote to "Changes Planned" after builds fail.
+    if ($object->isDraft()) {
+      $can_promote = true;
+      $can_demote = true;
+    }
+
+    // See PHI584. "Changes Planned" revisions which are not yet broadcasting
+    // can promote to "Review Requested" if builds pass.
+
+    // This pass is presumably the result of someone restarting the builds and
+    // having them work this time, perhaps because the builds are not perfectly
+    // reliable or perhaps because someone fixed some issue with build hardware
+    // or some other dependency.
+
+    // Currently, there's no legitimate way to end up in this state except
+    // through automatic demotion, so this behavior should not generate an
+    // undue level of confusion or ambiguity. Also note that these changes can
+    // not demote again since they've already been demoted once.
+    if ($object->isChangePlanned()) {
+      if (!$object->getShouldBroadcast()) {
+        $can_promote = true;
+      }
+    }
+
+    if (($can_promote || $can_demote) && $auto_undraft) {
+      $status = $this->loadCompletedBuildableStatus($object);
+
+      $is_passed = ($status === HarbormasterBuildableStatus::STATUS_PASSED);
+      $is_failed = ($status === HarbormasterBuildableStatus::STATUS_FAILED);
+
+      if ($is_passed && $can_promote) {
         // When Harbormaster moves a revision out of the draft state, we
         // attribute the action to the revision author since this is more
         // natural and more useful.
@@ -1590,6 +1660,20 @@ final class DifferentialTransactionEditor
         // batch of transactions finishes so that Herald can fire on the new
         // revision state. See T13027 for discussion.
         $this->queueTransaction($xaction);
+      } else if ($is_failed && $can_demote) {
+        // When demoting a revision, we act as "Harbormaster" instead of
+        // the author since this feels a little more natural.
+        $harbormaster_phid = id(new PhabricatorHarbormasterApplication())
+          ->getPHID();
+
+        $xaction = $object->getApplicationTransactionTemplate()
+          ->setAuthorPHID($harbormaster_phid)
+          ->setMetadataValue('draft.demote', true)
+          ->setTransactionType(
+            DifferentialRevisionPlanChangesTransaction::TRANSACTIONTYPE)
+          ->setNewValue(true);
+
+        $this->queueTransaction($xaction);
       }
     }
 
@@ -1605,32 +1689,24 @@ final class DifferentialTransactionEditor
     // email so the mail gets enriched with "SUMMARY" and "TEST PLAN".
 
     $is_new = $this->getIsNewObject();
-    $was_draft = $this->wasDraft;
+    $was_broadcasting = $this->wasBroadcasting;
 
-    if (!$object->isDraft() && ($was_draft || $is_new)) {
-      if (!$object->getHasBroadcast()) {
+    if ($object->getShouldBroadcast()) {
+      if (!$was_broadcasting || $is_new) {
         // Mark this as the first broadcast we're sending about the revision
         // so mail can generate specially.
         $this->firstBroadcast = true;
-
-        $object
-          ->setHasBroadcast(true)
-          ->save();
       }
     }
 
     return $xactions;
   }
 
-  private function hasActiveBuilds($object) {
+  private function loadCompletedBuildableStatus(
+    DifferentialRevision $revision) {
     $viewer = $this->requireActor();
-
-    $builds = $object->loadActiveBuilds($viewer);
-    if (!$builds) {
-      return false;
-    }
-
-    return true;
+    $builds = $revision->loadImpactfulBuilds($viewer);
+    return $revision->newBuildableStatusForBuilds($builds);
   }
 
   private function requireReviewers(DifferentialRevision $revision) {

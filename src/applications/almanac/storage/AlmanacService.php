@@ -156,8 +156,21 @@ final class AlmanacService
     return $this->getServiceImplementation()->getFieldSpecifications();
   }
 
+  public function getBindingFieldSpecifications(AlmanacBinding $binding) {
+    $impl = $this->getServiceImplementation();
+    return $impl->getBindingFieldSpecifications($binding);
+  }
+
   public function newAlmanacPropertyEditEngine() {
     return new AlmanacServicePropertyEditEngine();
+  }
+
+  public function getAlmanacPropertySetTransactionType() {
+    return AlmanacServiceSetPropertyTransaction::TRANSACTIONTYPE;
+  }
+
+  public function getAlmanacPropertyDeleteTransactionType() {
+    return AlmanacServiceDeletePropertyTransaction::TRANSACTIONTYPE;
   }
 
 
@@ -213,19 +226,8 @@ final class AlmanacService
     return new AlmanacServiceEditor();
   }
 
-  public function getApplicationTransactionObject() {
-    return $this;
-  }
-
   public function getApplicationTransactionTemplate() {
     return new AlmanacServiceTransaction();
-  }
-
-  public function willRenderTimeline(
-    PhabricatorApplicationTransactionView $timeline,
-    AphrontRequest $request) {
-
-    return $timeline;
   }
 
 

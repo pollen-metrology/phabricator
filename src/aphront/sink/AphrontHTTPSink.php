@@ -5,13 +5,21 @@
  * Normally this is just @{class:AphrontPHPHTTPSink}, which uses "echo" and
  * "header()" to emit responses.
  *
- * Mostly, this class allows us to do install security or metrics hooks in the
- * output pipeline.
- *
  * @task write  Writing Response Components
  * @task emit   Emitting the Response
  */
 abstract class AphrontHTTPSink extends Phobject {
+
+  private $showStackTraces = false;
+
+  final public function setShowStackTraces($show_stack_traces) {
+    $this->showStackTraces = $show_stack_traces;
+    return $this;
+  }
+
+  final public function getShowStackTraces() {
+    return $this->showStackTraces;
+  }
 
 
 /* -(  Writing Response Components  )---------------------------------------- */
@@ -103,6 +111,17 @@ abstract class AphrontHTTPSink extends Phobject {
     // HTTP headers.
     $data = $response->getContentIterator();
 
+    // This isn't an exceptionally clean separation of concerns, but we need
+    // to add CSP headers for all response types (including both web pages
+    // and dialogs) and can't determine the correct CSP until after we render
+    // the page (because page elements like Recaptcha may add CSP rules).
+    $static = CelerityAPI::getStaticResourceResponse();
+    foreach ($static->getContentSecurityPolicyURIMap() as $kind => $uris) {
+      foreach ($uris as $uri) {
+        $response->addContentSecurityPolicyURI($kind, $uri);
+      }
+    }
+
     $all_headers = array_merge(
       $response->getHeaders(),
       $response->getCacheHeaders());
@@ -111,6 +130,23 @@ abstract class AphrontHTTPSink extends Phobject {
       $response->getHTTPResponseCode(),
       $response->getHTTPResponseMessage());
     $this->writeHeaders($all_headers);
+
+    // Allow clients an unlimited amount of time to download the response.
+
+    // This allows clients to perform a "slow loris" attack, where they
+    // download a large response very slowly to tie up process slots. However,
+    // concurrent connection limits and "RequestReadTimeout" already prevent
+    // this attack. We could add our own minimum download rate here if we want
+    // to make this easier to configure eventually.
+
+    // For normal page responses, we've fully rendered the page into a string
+    // already so all that's left is writing it to the client.
+
+    // For unusual responses (like large file downloads) we may still be doing
+    // some meaningful work, but in theory that work is intrinsic to streaming
+    // the response.
+
+    set_time_limit(0);
 
     $abort = false;
     foreach ($data as $block) {

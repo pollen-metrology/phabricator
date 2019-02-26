@@ -135,6 +135,12 @@ abstract class DiffusionCommandEngine extends Phobject {
 
     $future->setEnv($env);
 
+    // See T13108. By default, don't let any cluster command run indefinitely
+    // to try to avoid cases where `git fetch` hangs for some reason and we're
+    // left sitting with a held lock forever.
+    $repository = $this->getRepository();
+    $future->setTimeout($repository->getEffectiveCopyTimeLimit());
+
     return $future;
   }
 

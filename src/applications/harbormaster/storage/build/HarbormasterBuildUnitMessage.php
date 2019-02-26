@@ -1,17 +1,22 @@
 <?php
 
 final class HarbormasterBuildUnitMessage
-  extends HarbormasterDAO {
+  extends HarbormasterDAO
+  implements PhabricatorPolicyInterface {
 
   protected $buildTargetPHID;
   protected $engine;
   protected $namespace;
   protected $name;
+  protected $nameIndex;
   protected $result;
   protected $duration;
   protected $properties = array();
 
   private $buildTarget = self::ATTACHABLE;
+
+  const FORMAT_TEXT = 'text';
+  const FORMAT_REMARKUP = 'remarkup';
 
   public static function initializeNewUnitMessage(
     HarbormasterBuildTarget $build_target) {
@@ -66,6 +71,13 @@ final class HarbormasterBuildUnitMessage
         'description' => pht(
           'Additional human-readable information about the failure.'),
       ),
+      'format' => array(
+        'type' => 'optional string',
+        'description' => pht(
+          'Format for the text provided in "details". Valid values are '.
+          '"text" (default) or "remarkup". This controls how test details '.
+          'are rendered when shown to users.'),
+      ),
     );
   }
 
@@ -104,6 +116,11 @@ final class HarbormasterBuildUnitMessage
       $obj->setProperty('details', $details);
     }
 
+    $format = idx($dict, 'format');
+    if ($format) {
+      $obj->setProperty('format', $format);
+    }
+
     return $obj;
   }
 
@@ -116,6 +133,7 @@ final class HarbormasterBuildUnitMessage
         'engine' => 'text255',
         'namespace' => 'text255',
         'name' => 'text255',
+        'nameIndex' => 'bytes12',
         'result' => 'text32',
         'duration' => 'double?',
       ),
@@ -147,6 +165,66 @@ final class HarbormasterBuildUnitMessage
 
   public function getUnitMessageDetails() {
     return $this->getProperty('details', '');
+  }
+
+  public function getUnitMessageDetailsFormat() {
+    return $this->getProperty('format', self::FORMAT_TEXT);
+  }
+
+  public function newUnitMessageDetailsView(
+    PhabricatorUser $viewer,
+    $summarize = false) {
+
+    $format = $this->getUnitMessageDetailsFormat();
+
+    $is_text = ($format !== self::FORMAT_REMARKUP);
+    $is_remarkup = ($format === self::FORMAT_REMARKUP);
+
+    $full_details = $this->getUnitMessageDetails();
+
+    if (!strlen($full_details)) {
+      if ($summarize) {
+        return null;
+      }
+      $details = phutil_tag('em', array(), pht('No details provided.'));
+    } else if ($summarize) {
+      if ($is_text) {
+        $details = id(new PhutilUTF8StringTruncator())
+          ->setMaximumBytes(2048)
+          ->truncateString($full_details);
+        $details = phutil_split_lines($details);
+
+        $limit = 3;
+        if (count($details) > $limit) {
+          $details = array_slice($details, 0, $limit);
+        }
+
+        $details = implode('', $details);
+      } else {
+        $details = $full_details;
+      }
+    } else {
+      $details = $full_details;
+    }
+
+    require_celerity_resource('harbormaster-css');
+
+    $classes = array();
+    $classes[] = 'harbormaster-unit-details';
+
+    if ($is_remarkup) {
+      $details = new PHUIRemarkupView($viewer, $details);
+    } else {
+      $classes[] = 'harbormaster-unit-details-text';
+      $classes[] = 'PhabricatorMonospaced';
+    }
+
+    return phutil_tag(
+      'div',
+      array(
+        'class' => implode(' ', $classes),
+      ),
+      $details);
   }
 
   public function getUnitMessageDisplayName() {
@@ -182,6 +260,54 @@ final class HarbormasterBuildUnitMessage
     );
 
     return implode("\0", $parts);
+  }
+
+  public function save() {
+    if ($this->nameIndex === null) {
+      $this->nameIndex = HarbormasterString::newIndex($this->getName());
+    }
+
+    // See T13088. While we're letting installs do online migrations to avoid
+    // downtime, don't populate the "name" column for new writes. New writes
+    // use the "HarbormasterString" table instead.
+    $old_name = $this->name;
+    $this->name = '';
+
+    $caught = null;
+    try {
+      $result = parent::save();
+    } catch (Exception $ex) {
+      $caught = $ex;
+    }
+
+    $this->name = $old_name;
+
+    if ($caught) {
+      throw $caught;
+    }
+
+    return $result;
+  }
+
+
+/* -(  PhabricatorPolicyInterface  )----------------------------------------- */
+
+
+  public function getCapabilities() {
+    return array(
+      PhabricatorPolicyCapability::CAN_VIEW,
+    );
+  }
+
+  public function getPolicy($capability) {
+    switch ($capability) {
+      case PhabricatorPolicyCapability::CAN_VIEW:
+        return PhabricatorPolicies::getMostOpenPolicy();
+    }
+  }
+
+  public function hasAutomaticCapability($capability, PhabricatorUser $viewer) {
+    return false;
   }
 
 }

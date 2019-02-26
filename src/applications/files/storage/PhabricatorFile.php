@@ -159,8 +159,20 @@ final class PhabricatorFile extends PhabricatorFileDAO
 
   public function saveAndIndex() {
     $this->save();
-    PhabricatorSearchWorker::queueDocumentForIndexing($this->getPHID());
+
+    if ($this->isIndexableFile()) {
+      PhabricatorSearchWorker::queueDocumentForIndexing($this->getPHID());
+    }
+
     return $this;
+  }
+
+  private function isIndexableFile() {
+    if ($this->getIsChunk()) {
+      return false;
+    }
+
+    return true;
   }
 
   public function getMonogram() {
@@ -492,12 +504,13 @@ final class PhabricatorFile extends PhabricatorFileDAO
     $this->setStorageFormat($format->getStorageFormatKey());
     $this->setStorageProperties($properties);
 
-    list($identifier, $new_handle) = $this->writeToEngine(
+    list($identifier, $new_handle, $integrity_hash) = $this->writeToEngine(
       $engine,
       $data,
       $params);
 
     $this->setStorageHandle($new_handle);
+    $this->setIntegrityHash($integrity_hash);
     $this->save();
 
     $this->deleteFileDataIfUnused(
@@ -648,10 +661,17 @@ final class PhabricatorFile extends PhabricatorFileDAO
           // just bail out.
           throw $status;
         } else {
-          // This is HTTP 2XX, so use the response body to save the
-          // file data.
+          // This is HTTP 2XX, so use the response body to save the file data.
+          // Provide a default name based on the URI, truncating it if the URI
+          // is exceptionally long.
+
+          $default_name = basename($uri);
+          $default_name = id(new PhutilUTF8StringTruncator())
+            ->setMaximumBytes(64)
+            ->truncateString($default_name);
+
           $params = $params + array(
-            'name' => basename($uri),
+            'name' => $default_name,
           );
 
           return self::newFromFileData($body, $params);
@@ -930,6 +950,19 @@ final class PhabricatorFile extends PhabricatorFileDAO
     return idx($mime_map, $mime_type);
   }
 
+  public function isPDF() {
+    if (!$this->isViewableInBrowser()) {
+      return false;
+    }
+
+    $mime_map = array(
+      'application/pdf' => 'application/pdf',
+    );
+
+    $mime_type = $this->getMimeType();
+    return idx($mime_map, $mime_type);
+  }
+
   public function isTransformableImage() {
     // NOTE: The way the 'gd' extension works in PHP is that you can install it
     // with support for only some file types, so it might be able to handle
@@ -1152,7 +1185,6 @@ final class PhabricatorFile extends PhabricatorFileDAO
 
       $params = array(
         'name' => $builtin->getBuiltinDisplayName(),
-        'ttl.relative' => phutil_units('7 days in seconds'),
         'canCDN' => true,
         'builtin' => $key,
       );
@@ -1512,19 +1544,8 @@ final class PhabricatorFile extends PhabricatorFileDAO
     return new PhabricatorFileEditor();
   }
 
-  public function getApplicationTransactionObject() {
-    return $this;
-  }
-
   public function getApplicationTransactionTemplate() {
     return new PhabricatorFileTransaction();
-  }
-
-  public function willRenderTimeline(
-    PhabricatorApplicationTransactionView $timeline,
-    AphrontRequest $request) {
-
-    return $timeline;
   }
 
 
@@ -1648,7 +1669,7 @@ final class PhabricatorFile extends PhabricatorFileDAO
   public function getFieldValuesForConduit() {
     return array(
       'name' => $this->getName(),
-      'dataURI' => $this->getCDNURI(),
+      'dataURI' => $this->getCDNURI('data'),
       'size' => (int)$this->getByteSize(),
     );
   }

@@ -114,22 +114,44 @@ Auditing
 ========
 
 You can automatically trigger audits on unreviewed code by configuring
-**Auditing**. The available settings are:
+**Auditing**. The available settings allow you to select behavior based on
+these conditions:
 
-  - **Disabled**: Do not trigger audits.
-  - **Enabled**: Trigger audits.
+  - **No Owner Involvement**: Triggers an audit when the commit author is not
+    a package owner, and no package owner reviewed an associated revision in
+    Differential.
+  - **Unreviewed Commits**: Triggers an audit when a commit has no associated
+    revision in Differential, or the associated revision in Differential landed
+    without being "Accepted".
 
-When enabled, audits are triggered for commits which:
+For example, the **Audit Commits With No Owner Involvement** option triggers
+audits for commits which:
 
   - affect code owned by the package;
   - were not authored by a package owner; and
-  - were not accepted by a package owner.
+  - were not accepted (in Differential) by a package owner or the package
+    itself.
 
 Audits do not trigger if the package has been archived.
 
 The intent of this feature is to make it easy to configure simple auditing
 behavior. If you want more powerful auditing behavior, you can use Herald to
 write more sophisticated rules.
+
+
+Ignored Attributes
+==================
+
+You can automatically exclude certain types of files, like generated files,
+with **Ignored Attributes**.
+
+When a package is marked as ignoring files with a particular attribute, and
+a file in a particular change has that attribute, the file will be ignored when
+computing ownership.
+
+(This feature is currently rough, only works for Differential revisions, and
+may not always compute the correct set of owning packages in some complex
+cases where it interacts with dominion rules.)
 
 
 Files in Multiple Packages

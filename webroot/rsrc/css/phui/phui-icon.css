@@ -49,6 +49,10 @@ img.phui-image-disabled {
   color: {$bluetext};
 }
 
+.phui-icon-view.invisible {
+  visibility: hidden;
+}
+
 /* - Icon in a Circle ------------------------------------------------------- */
 
 .phui-icon-circle {
@@ -178,4 +182,25 @@ a.phui-icon-circle.hover-red:hover .phui-icon-view {
 a.phui-icon-view.phui-icon-square:hover {
   text-decoration: none;
   color: #fff;
+}
+
+
+.phui-icon-emblem {
+  border-radius: 4px;
+}
+
+.phui-timeline-extra .phui-icon-emblem {
+  padding: 4px 6px;
+}
+
+.phui-icon-emblem-violet {
+  background-color: {$violet};
+}
+
+.phui-icon-emblem-red {
+  background-color: {$red};
+}
+
+.phui-icon-emblem-pink {
+  background-color: {$pink};
 }

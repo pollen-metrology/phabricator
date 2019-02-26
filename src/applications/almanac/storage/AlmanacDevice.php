@@ -143,6 +143,14 @@ final class AlmanacDevice
     return new AlmanacDevicePropertyEditEngine();
   }
 
+  public function getAlmanacPropertySetTransactionType() {
+    return AlmanacDeviceSetPropertyTransaction::TRANSACTIONTYPE;
+  }
+
+  public function getAlmanacPropertyDeleteTransactionType() {
+    return AlmanacDeviceDeletePropertyTransaction::TRANSACTIONTYPE;
+  }
+
 
 /* -(  PhabricatorPolicyInterface  )----------------------------------------- */
 
@@ -196,19 +204,8 @@ final class AlmanacDevice
     return new AlmanacDeviceEditor();
   }
 
-  public function getApplicationTransactionObject() {
-    return $this;
-  }
-
   public function getApplicationTransactionTemplate() {
     return new AlmanacDeviceTransaction();
-  }
-
-  public function willRenderTimeline(
-    PhabricatorApplicationTransactionView $timeline,
-    AphrontRequest $request) {
-
-    return $timeline;
   }
 
 

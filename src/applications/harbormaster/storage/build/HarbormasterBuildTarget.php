@@ -1,7 +1,11 @@
 <?php
 
-final class HarbormasterBuildTarget extends HarbormasterDAO
-  implements PhabricatorPolicyInterface {
+final class HarbormasterBuildTarget
+  extends HarbormasterDAO
+  implements
+    PhabricatorPolicyInterface,
+    PhabricatorDestructibleInterface,
+    PhabricatorConduitResultInterface {
 
   protected $name;
   protected $buildPHID;
@@ -353,5 +357,141 @@ final class HarbormasterBuildTarget extends HarbormasterDAO
   public function describeAutomaticCapability($capability) {
     return pht('Users must be able to see a build to view its build targets.');
   }
+
+
+/* -(  PhabricatorDestructibleInterface  )----------------------------------- */
+
+
+  public function destroyObjectPermanently(
+    PhabricatorDestructionEngine $engine) {
+    $viewer = $engine->getViewer();
+
+    $this->openTransaction();
+
+      $lint_message = new HarbormasterBuildLintMessage();
+      $conn = $lint_message->establishConnection('w');
+      queryfx(
+        $conn,
+        'DELETE FROM %T WHERE buildTargetPHID = %s',
+        $lint_message->getTableName(),
+        $this->getPHID());
+
+      $unit_message = new HarbormasterBuildUnitMessage();
+      $conn = $unit_message->establishConnection('w');
+      queryfx(
+        $conn,
+        'DELETE FROM %T WHERE buildTargetPHID = %s',
+        $unit_message->getTableName(),
+        $this->getPHID());
+
+      $logs = id(new HarbormasterBuildLogQuery())
+        ->setViewer($viewer)
+        ->withBuildTargetPHIDs(array($this->getPHID()))
+        ->execute();
+      foreach ($logs as $log) {
+        $engine->destroyObject($log);
+      }
+
+      $artifacts = id(new HarbormasterBuildArtifactQuery())
+        ->setViewer($viewer)
+        ->withBuildTargetPHIDs(array($this->getPHID()))
+        ->execute();
+      foreach ($artifacts as $artifact) {
+        $engine->destroyObject($artifact);
+      }
+
+      $messages = id(new HarbormasterBuildMessageQuery())
+        ->setViewer($viewer)
+        ->withReceiverPHIDs(array($this->getPHID()))
+        ->execute();
+      foreach ($messages as $message) {
+        $engine->destroyObject($message);
+      }
+
+      $this->delete();
+    $this->saveTransaction();
+  }
+
+
+/* -(  PhabricatorConduitResultInterface  )---------------------------------- */
+
+
+  public function getFieldSpecificationsForConduit() {
+    return array(
+      id(new PhabricatorConduitSearchFieldSpecification())
+        ->setKey('name')
+        ->setType('string')
+        ->setDescription(pht('The name of the build target.')),
+      id(new PhabricatorConduitSearchFieldSpecification())
+        ->setKey('buildPHID')
+        ->setType('phid')
+        ->setDescription(pht('The build the target is associated with.')),
+      id(new PhabricatorConduitSearchFieldSpecification())
+        ->setKey('buildStepPHID')
+        ->setType('phid')
+        ->setDescription(pht('The build step the target runs.')),
+      id(new PhabricatorConduitSearchFieldSpecification())
+        ->setKey('status')
+        ->setType('map<string, wild>')
+        ->setDescription(pht('Status for the build target.')),
+      id(new PhabricatorConduitSearchFieldSpecification())
+        ->setKey('epochStarted')
+        ->setType('epoch?')
+        ->setDescription(
+          pht(
+            'Epoch timestamp for target start, if the target '.
+            'has started.')),
+      id(new PhabricatorConduitSearchFieldSpecification())
+        ->setKey('epochCompleted')
+        ->setType('epoch?')
+        ->setDescription(
+          pht(
+            'Epoch timestamp for target completion, if the target '.
+            'has completed.')),
+      id(new PhabricatorConduitSearchFieldSpecification())
+        ->setKey('buildGeneration')
+        ->setType('int')
+        ->setDescription(
+          pht(
+            'Build generation this target belongs to. When builds '.
+            'restart, a new generation with new targets is created.')),
+    );
+  }
+
+  public function getFieldValuesForConduit() {
+    $status = $this->getTargetStatus();
+
+    $epoch_started = $this->getDateStarted();
+    if ($epoch_started) {
+      $epoch_started = (int)$epoch_started;
+    } else {
+      $epoch_started = null;
+    }
+
+    $epoch_completed = $this->getDateCompleted();
+    if ($epoch_completed) {
+      $epoch_completed = (int)$epoch_completed;
+    } else {
+      $epoch_completed = null;
+    }
+
+    return array(
+      'name' => $this->getName(),
+      'buildPHID' => $this->getBuildPHID(),
+      'buildStepPHID' => $this->getBuildStepPHID(),
+      'status' => array(
+        'value' => $status,
+        'name' => self::getBuildTargetStatusName($status),
+      ),
+      'epochStarted' => $epoch_started,
+      'epochCompleted' => $epoch_completed,
+      'buildGeneration' => (int)$this->getBuildGeneration(),
+    );
+  }
+
+  public function getConduitSearchAttachments() {
+    return array();
+  }
+
 
 }

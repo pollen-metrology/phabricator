@@ -19,7 +19,9 @@ final class ManiphestTask extends ManiphestDAO
     PhabricatorFerretInterface,
     DoorkeeperBridgedObjectInterface,
     PhabricatorEditEngineSubtypeInterface,
-    PhabricatorEditEngineLockableInterface {
+    PhabricatorEditEngineLockableInterface,
+    PhabricatorEditEngineMFAInterface,
+    PhabricatorPolicyCodexInterface {
 
   const MARKUP_FIELD_DESCRIPTION = 'markup:desc';
 
@@ -216,8 +218,16 @@ final class ManiphestTask extends ManiphestDAO
     return ManiphestTaskStatus::isClosedStatus($this->getStatus());
   }
 
-  public function isLocked() {
-    return ManiphestTaskStatus::isLockedStatus($this->getStatus());
+  public function areCommentsLocked() {
+    if ($this->areEditsLocked()) {
+      return true;
+    }
+
+    return ManiphestTaskStatus::areCommentsLockedInStatus($this->getStatus());
+  }
+
+  public function areEditsLocked() {
+    return ManiphestTaskStatus::areEditsLockedInStatus($this->getStatus());
   }
 
   public function setProperty($key, $value) {
@@ -370,13 +380,17 @@ final class ManiphestTask extends ManiphestDAO
       case PhabricatorPolicyCapability::CAN_VIEW:
         return $this->getViewPolicy();
       case PhabricatorPolicyCapability::CAN_INTERACT:
-        if ($this->isLocked()) {
+        if ($this->areCommentsLocked()) {
           return PhabricatorPolicies::POLICY_NOONE;
         } else {
           return $this->getViewPolicy();
         }
       case PhabricatorPolicyCapability::CAN_EDIT:
-        return $this->getEditPolicy();
+        if ($this->areEditsLocked()) {
+          return PhabricatorPolicies::POLICY_NOONE;
+        } else {
+          return $this->getEditPolicy();
+        }
     }
   }
 
@@ -452,19 +466,8 @@ final class ManiphestTask extends ManiphestDAO
     return new ManiphestTransactionEditor();
   }
 
-  public function getApplicationTransactionObject() {
-    return $this;
-  }
-
   public function getApplicationTransactionTemplate() {
     return new ManiphestTransaction();
-  }
-
-  public function willRenderTimeline(
-    PhabricatorApplicationTransactionView $timeline,
-    AphrontRequest $request) {
-
-    return $timeline;
   }
 
 
@@ -573,7 +576,7 @@ final class ManiphestTask extends ManiphestDAO
   public function newSubtypeObject() {
     $subtype_key = $this->getEditEngineSubtype();
     $subtype_map = $this->newEditEngineSubtypeMap();
-    return idx($subtype_map, $subtype_key);
+    return $subtype_map->getSubtype($subtype_key);
   }
 
 /* -(  PhabricatorFulltextInterface  )--------------------------------------- */
@@ -628,6 +631,22 @@ final class ManiphestTask extends ManiphestDAO
 
   public function newFerretEngine() {
     return new ManiphestTaskFerretEngine();
+  }
+
+
+/* -(  PhabricatorEditEngineMFAInterface  )---------------------------------- */
+
+
+  public function newEditEngineMFAEngine() {
+    return new ManiphestTaskMFAEngine();
+  }
+
+
+/* -(  PhabricatorPolicyCodexInterface  )------------------------------------ */
+
+
+  public function newPolicyCodex() {
+    return new ManiphestTaskPolicyCodex();
   }
 
 }

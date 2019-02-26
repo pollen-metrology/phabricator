@@ -155,7 +155,7 @@ final class ManiphestTransactionEditor
   }
 
   protected function getMailSubjectPrefix() {
-    return PhabricatorEnv::getEnvConfig('metamta.maniphest.subject-prefix');
+    return pht('[Maniphest]');
   }
 
   protected function getMailThreadID(PhabricatorLiskDAO $object) {
@@ -279,51 +279,6 @@ final class ManiphestTransactionEditor
       ->setTask($object);
   }
 
-  protected function requireCapabilities(
-    PhabricatorLiskDAO $object,
-    PhabricatorApplicationTransaction $xaction) {
-
-    parent::requireCapabilities($object, $xaction);
-
-    $app_capability_map = array(
-      ManiphestTaskPriorityTransaction::TRANSACTIONTYPE =>
-        ManiphestEditPriorityCapability::CAPABILITY,
-      ManiphestTaskStatusTransaction::TRANSACTIONTYPE =>
-        ManiphestEditStatusCapability::CAPABILITY,
-      ManiphestTaskOwnerTransaction::TRANSACTIONTYPE =>
-        ManiphestEditAssignCapability::CAPABILITY,
-      PhabricatorTransactions::TYPE_EDIT_POLICY =>
-        ManiphestEditPoliciesCapability::CAPABILITY,
-      PhabricatorTransactions::TYPE_VIEW_POLICY =>
-        ManiphestEditPoliciesCapability::CAPABILITY,
-    );
-
-
-    $transaction_type = $xaction->getTransactionType();
-
-    $app_capability = null;
-    if ($transaction_type == PhabricatorTransactions::TYPE_EDGE) {
-      switch ($xaction->getMetadataValue('edge:type')) {
-        case PhabricatorProjectObjectHasProjectEdgeType::EDGECONST:
-          $app_capability = ManiphestEditProjectsCapability::CAPABILITY;
-          break;
-      }
-    } else {
-      $app_capability = idx($app_capability_map, $transaction_type);
-    }
-
-    if ($app_capability) {
-      $app = id(new PhabricatorApplicationQuery())
-        ->setViewer($this->getActor())
-        ->withClasses(array('PhabricatorManiphestApplication'))
-        ->executeOne();
-      PhabricatorPolicyFilter::requireCapability(
-        $this->getActor(),
-        $app,
-        $app_capability);
-    }
-  }
-
   protected function adjustObjectForPolicyChecks(
     PhabricatorLiskDAO $object,
     array $xactions) {
@@ -335,7 +290,7 @@ final class ManiphestTransactionEditor
           $copy->setOwnerPHID($xaction->getNewValue());
           break;
         default:
-          continue;
+          break;
       }
     }
 
@@ -516,27 +471,28 @@ final class ManiphestTransactionEditor
     // be worth evaluating is to use "CASE". Another approach is to disable
     // strict mode for this query.
 
-    $extra_columns = array(
-      'phid' => '""',
-      'authorPHID' => '""',
-      'status' => '""',
-      'priority' => 0,
-      'title' => '""',
-      'description' => '""',
-      'dateCreated' => 0,
-      'dateModified' => 0,
-      'mailKey' => '""',
-      'viewPolicy' => '""',
-      'editPolicy' => '""',
-      'ownerOrdering' => '""',
-      'spacePHID' => '""',
-      'bridgedObjectPHID' => '""',
-      'properties' => '""',
-      'points' => 0,
-      'subtype' => '""',
-    );
+    $default_str = qsprintf($conn, '%s', '');
+    $default_int = qsprintf($conn, '%d', 0);
 
-    $defaults = implode(', ', $extra_columns);
+    $extra_columns = array(
+      'phid' => $default_str,
+      'authorPHID' => $default_str,
+      'status' => $default_str,
+      'priority' => $default_int,
+      'title' => $default_str,
+      'description' => $default_str,
+      'dateCreated' => $default_int,
+      'dateModified' => $default_int,
+      'mailKey' => $default_str,
+      'viewPolicy' => $default_str,
+      'editPolicy' => $default_str,
+      'ownerOrdering' => $default_str,
+      'spacePHID' => $default_str,
+      'bridgedObjectPHID' => $default_str,
+      'properties' => $default_str,
+      'points' => $default_int,
+      'subtype' => $default_str,
+    );
 
     $sql = array();
     $offset = 0;
@@ -565,9 +521,9 @@ final class ManiphestTransactionEditor
 
       $sql[] = qsprintf(
         $conn,
-        '(%d, %Q, %f)',
+        '(%d, %LQ, %f)',
         $id,
-        $defaults,
+        $extra_columns,
         $subpriority);
 
       $offset++;
@@ -576,10 +532,10 @@ final class ManiphestTransactionEditor
     foreach (PhabricatorLiskDAO::chunkSQL($sql) as $chunk) {
       queryfx(
         $conn,
-        'INSERT INTO %T (id, %Q, subpriority) VALUES %Q
+        'INSERT INTO %T (id, %LC, subpriority) VALUES %LQ
           ON DUPLICATE KEY UPDATE subpriority = VALUES(subpriority)',
         $task->getTableName(),
-        implode(', ', array_keys($extra_columns)),
+        array_keys($extra_columns),
         $chunk);
     }
 
@@ -594,6 +550,10 @@ final class ManiphestTransactionEditor
 
     if ($this->moreValidationErrors) {
       $errors = array_merge($errors, $this->moreValidationErrors);
+    }
+
+    foreach ($this->getLockValidationErrors($object, $xactions) as $error) {
+      $errors[] = $error;
     }
 
     return $errors;
@@ -693,7 +653,7 @@ final class ManiphestTransactionEditor
         $old_value = $object->getOwnerPHID();
         $new_value = $xaction->getNewValue();
         if ($old_value === $new_value) {
-          continue;
+          break;
         }
 
         // When a task is reassigned, move the old owner to the subscriber
@@ -1055,5 +1015,86 @@ final class ManiphestTransactionEditor
   }
 
 
+  private function getLockValidationErrors($object, array $xactions) {
+    $errors = array();
+
+    $old_owner = $object->getOwnerPHID();
+    $old_status = $object->getStatus();
+
+    $new_owner = $old_owner;
+    $new_status = $old_status;
+
+    $owner_xaction = null;
+    $status_xaction = null;
+
+    foreach ($xactions as $xaction) {
+      switch ($xaction->getTransactionType()) {
+        case ManiphestTaskOwnerTransaction::TRANSACTIONTYPE:
+          $new_owner = $xaction->getNewValue();
+          $owner_xaction = $xaction;
+          break;
+        case ManiphestTaskStatusTransaction::TRANSACTIONTYPE:
+          $new_status = $xaction->getNewValue();
+          $status_xaction = $xaction;
+          break;
+      }
+    }
+
+    $actor_phid = $this->getActingAsPHID();
+
+    $was_locked = ManiphestTaskStatus::areEditsLockedInStatus(
+      $old_status);
+    $now_locked = ManiphestTaskStatus::areEditsLockedInStatus(
+      $new_status);
+
+    if (!$now_locked) {
+      // If we're not ending in an edit-locked status, everything is good.
+    } else if ($new_owner !== null) {
+      // If we ending the edit with some valid owner, this is allowed for
+      // now. We might need to revisit this.
+    } else {
+      // The edits end with the task locked and unowned. No one will be able
+      // to edit it, so we forbid this. We try to be specific about what the
+      // user did wrong.
+
+      $owner_changed = ($old_owner && !$new_owner);
+      $status_changed = ($was_locked !== $now_locked);
+      $message = null;
+
+      if ($status_changed && $owner_changed) {
+        $message = pht(
+          'You can not lock this task and unassign it at the same time '.
+          'because no one will be able to edit it anymore. Lock the task '.
+          'or remove the owner, but not both.');
+        $problem_xaction = $status_xaction;
+      } else if ($status_changed) {
+        $message = pht(
+          'You can not lock this task because it does not have an owner. '.
+          'No one would be able to edit the task. Assign the task to an '.
+          'owner before locking it.');
+        $problem_xaction = $status_xaction;
+      } else if ($owner_changed) {
+        $message = pht(
+          'You can not remove the owner of this task because it is locked '.
+          'and no one would be able to edit the task. Reassign the task or '.
+          'unlock it before removing the owner.');
+        $problem_xaction = $owner_xaction;
+      } else {
+        // If the task was already broken, we don't have a transaction to
+        // complain about so just let it through. In theory, this is
+        // impossible since policy rules should kick in before we get here.
+      }
+
+      if ($message) {
+        $errors[] = new PhabricatorApplicationTransactionValidationError(
+          $problem_xaction->getTransactionType(),
+          pht('Lock Error'),
+          $message,
+          $problem_xaction);
+      }
+    }
+
+    return $errors;
+  }
 
 }

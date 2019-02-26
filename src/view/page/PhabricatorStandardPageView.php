@@ -330,9 +330,6 @@ final class PhabricatorStandardPageView extends PhabricatorBarePageView
       Javelin::initBehavior(
         'dark-console',
         $this->getConsoleConfig());
-
-      // Change this to initBehavior when there is some behavior to initialize
-      require_celerity_resource('javelin-behavior-error-log');
     }
 
     if ($user) {
@@ -895,13 +892,6 @@ final class PhabricatorStandardPageView extends PhabricatorBarePageView
       $response = id(new AphrontWebpageResponse())
         ->setContent($content)
         ->setFrameable($this->getFrameable());
-
-      $static = CelerityAPI::getStaticResourceResponse();
-      foreach ($static->getContentSecurityPolicyURIMap() as $kind => $uris) {
-        foreach ($uris as $uri) {
-          $response->addContentSecurityPolicyURI($kind, $uri);
-        }
-      }
     }
 
     return $response;

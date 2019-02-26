@@ -6,10 +6,6 @@ final class PhabricatorManiphestApplication extends PhabricatorApplication {
     return pht('Maniphest');
   }
 
-  public function getMenuName() {
-    return pht('Tasks');
-  }
-
   public function getShortDescription() {
     return pht('Tasks and Bugs');
   }
@@ -56,8 +52,10 @@ final class PhabricatorManiphestApplication extends PhabricatorApplication {
         'task/' => array(
           $this->getEditRoutePattern('edit/')
             => 'ManiphestTaskEditController',
+          'subtask/(?P<id>[1-9]\d*)/' => 'ManiphestTaskSubtaskController',
         ),
         'subpriority/' => 'ManiphestSubpriorityController',
+        'graph/(?P<id>[1-9]\d*)/' => 'ManiphestTaskGraphController',
       ),
     );
   }
@@ -89,11 +87,6 @@ final class PhabricatorManiphestApplication extends PhabricatorApplication {
         'template' => ManiphestTaskPHIDType::TYPECONST,
         'capability' => PhabricatorPolicyCapability::CAN_EDIT,
       ),
-      ManiphestEditStatusCapability::CAPABILITY => array(),
-      ManiphestEditAssignCapability::CAPABILITY => array(),
-      ManiphestEditPoliciesCapability::CAPABILITY => array(),
-      ManiphestEditPriorityCapability::CAPABILITY => array(),
-      ManiphestEditProjectsCapability::CAPABILITY => array(),
       ManiphestBulkEditCapability::CAPABILITY => array(),
     );
   }

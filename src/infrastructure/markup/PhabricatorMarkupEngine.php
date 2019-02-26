@@ -42,7 +42,7 @@ final class PhabricatorMarkupEngine extends Phobject {
   private $objects = array();
   private $viewer;
   private $contextObject;
-  private $version = 17;
+  private $version = 18;
   private $engineCaches = array();
   private $auxiliaryConfig = array();
 
@@ -510,6 +510,7 @@ final class PhabricatorMarkupEngine extends Phobject {
     $rules[] = new PhutilRemarkupDocumentLinkRule();
     $rules[] = new PhabricatorNavigationRemarkupRule();
     $rules[] = new PhabricatorKeyboardRemarkupRule();
+    $rules[] = new PhabricatorConfigRemarkupRule();
 
     if ($options['youtube']) {
       $rules[] = new PhabricatorYoutubeRemarkupRule();

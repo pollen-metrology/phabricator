@@ -3,12 +3,19 @@
 final class HarbormasterUnitMessageViewController
   extends HarbormasterController {
 
+  public function shouldAllowPublic() {
+    return true;
+  }
+
   public function handleRequest(AphrontRequest $request) {
     $viewer = $this->getViewer();
 
     $message_id = $request->getURIData('id');
 
-    $message = id(new HarbormasterBuildUnitMessage())->load($message_id);
+    $message = id(new HarbormasterBuildUnitMessageQuery())
+      ->setViewer($viewer)
+      ->withIDs(array($message_id))
+      ->executeOne();
     if (!$message) {
       return new Aphront404Response();
     }
@@ -84,23 +91,7 @@ final class HarbormasterUnitMessageViewController
       pht('Run At'),
       phabricator_datetime($message->getDateCreated(), $viewer));
 
-    $details = $message->getUnitMessageDetails();
-    if (strlen($details)) {
-      // TODO: Use the log view here, once it gets cleaned up.
-      // Shenanigans below.
-      $details = phutil_tag(
-        'div',
-        array(
-          'class' => 'PhabricatorMonospaced',
-          'style' =>
-            'white-space: pre-wrap; '.
-            'color: #666666; '.
-            'overflow-x: auto;',
-        ),
-        $details);
-    } else {
-      $details = phutil_tag('em', array(), pht('No details provided.'));
-    }
+    $details = $message->newUnitMessageDetailsView($viewer);
 
     $view->addSectionHeader(
       pht('Details'),

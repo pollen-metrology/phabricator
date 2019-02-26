@@ -69,11 +69,6 @@ abstract class PhabricatorModularTransaction
       ->generateNewValue($object, $this->getNewValue());
   }
 
-  final public function willApplyTransactions($object, array $xactions) {
-    return $this->getTransactionImplementation()
-      ->willApplyTransactions($object, $xactions);
-  }
-
   final public function applyInternalEffects($object) {
     return $this->getTransactionImplementation()
       ->applyInternalEffects($object);
@@ -98,6 +93,25 @@ abstract class PhabricatorModularTransaction
     }
 
     return parent::shouldHideForFeed();
+  }
+
+  /* final */ public function shouldHideForMail(array $xactions) {
+    if ($this->getTransactionImplementation()->shouldHideForMail()) {
+      return true;
+    }
+
+    return parent::shouldHideForMail($xactions);
+  }
+
+  final public function shouldHideForNotifications() {
+    $hide = $this->getTransactionImplementation()->shouldHideForNotifications();
+
+    // Returning "null" means "use the default behavior".
+    if ($hide === null) {
+      return parent::shouldHideForNotifications();
+    }
+
+    return $hide;
   }
 
   /* final */ public function getIcon() {
@@ -136,15 +150,6 @@ abstract class PhabricatorModularTransaction
     return parent::getActionStrength();
   }
 
-  public function getTitleForMail() {
-    $old_target = $this->getRenderingTarget();
-    $new_target = self::TARGET_TEXT;
-    $this->setRenderingTarget($new_target);
-    $title = $this->getTitle();
-    $this->setRenderingTarget($old_target);
-    return $title;
-  }
-
   /* final */ public function getTitleForFeed() {
     $title = $this->getTransactionImplementation()->getTitleForFeed();
     if ($title !== null) {
@@ -168,7 +173,7 @@ abstract class PhabricatorModularTransaction
     return parent::attachViewer($viewer);
   }
 
-  /* final */ public function hasChangeDetails() {
+  final public function hasChangeDetails() {
     if ($this->getTransactionImplementation()->hasChangeDetailView()) {
       return true;
     }
@@ -176,7 +181,7 @@ abstract class PhabricatorModularTransaction
     return parent::hasChangeDetails();
   }
 
-  /* final */ public function renderChangeDetails(PhabricatorUser $viewer) {
+  final public function renderChangeDetails(PhabricatorUser $viewer) {
     $impl = $this->getTransactionImplementation();
     $impl->setViewer($viewer);
     $view = $impl->newChangeDetailView();

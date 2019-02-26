@@ -76,6 +76,16 @@ abstract class DifferentialController extends PhabricatorController {
         $repository_phid,
         $changeset_path);
 
+      // If this particular changeset is generated code and the package does
+      // not match generated code, remove it from the list.
+      if ($changeset->isGeneratedChangeset()) {
+        foreach ($packages as $key => $package) {
+          if ($package->getMustMatchUngeneratedPaths()) {
+            unset($packages[$key]);
+          }
+        }
+      }
+
       $this->pathPackageMap[$changeset_path] = $packages;
       foreach ($packages as $package) {
         $this->packageChangesetMap[$package->getPHID()][] = $changeset;
@@ -182,9 +192,10 @@ abstract class DifferentialController extends PhabricatorController {
     $all_target_phids = array_mergev($target_map);
 
     if ($all_target_phids) {
-      $unit_messages = id(new HarbormasterBuildUnitMessage())->loadAllWhere(
-        'buildTargetPHID IN (%Ls)',
-        $all_target_phids);
+      $unit_messages = id(new HarbormasterBuildUnitMessageQuery())
+        ->setViewer($viewer)
+        ->withBuildTargetPHIDs($all_target_phids)
+        ->execute();
       $unit_messages = mgroup($unit_messages, 'getBuildTargetPHID');
     } else {
       $unit_messages = array();

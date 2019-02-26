@@ -7,9 +7,9 @@ final class DifferentialChangesetListView extends AphrontView {
   private $references = array();
   private $inlineURI;
   private $renderURI = '/differential/changeset/';
-  private $whitespace;
   private $background;
   private $header;
+  private $isStandalone;
 
   private $standaloneURI;
   private $leftRawFileURI;
@@ -99,11 +99,6 @@ final class DifferentialChangesetListView extends AphrontView {
     return $this;
   }
 
-  public function setWhitespace($whitespace) {
-    $this->whitespace = $whitespace;
-    return $this;
-  }
-
   public function setVsMap(array $vs_map) {
     $this->vsMap = $vs_map;
     return $this;
@@ -122,6 +117,15 @@ final class DifferentialChangesetListView extends AphrontView {
     $this->leftRawFileURI = $l;
     $this->rightRawFileURI = $r;
     return $this;
+  }
+
+  public function setIsStandalone($is_standalone) {
+    $this->isStandalone = $is_standalone;
+    return $this;
+  }
+
+  public function getIsStandalone() {
+    return $this->isStandalone;
   }
 
   public function setBackground($background) {
@@ -170,7 +174,6 @@ final class DifferentialChangesetListView extends AphrontView {
       $detail->setRenderingRef($ref);
 
       $detail->setRenderURI($this->renderURI);
-      $detail->setWhitespace($this->whitespace);
       $detail->setRenderer($renderer);
 
       if ($this->getParser()) {
@@ -219,6 +222,7 @@ final class DifferentialChangesetListView extends AphrontView {
       'changesetViewIDs' => $ids,
       'inlineURI' => $this->inlineURI,
       'inlineListURI' => $this->inlineListURI,
+      'isStandalone' => $this->getIsStandalone(),
       'pht' => array(
         'Open in Editor' => pht('Open in Editor'),
         'Show All Context' => pht('Show All Context'),
@@ -298,6 +302,7 @@ final class DifferentialChangesetListView extends AphrontView {
         'Show All Inlines' => pht('Show All Inlines'),
 
         'List Inline Comments' => pht('List Inline Comments'),
+        'Display Options' => pht('Display Options'),
 
         'Hide or show all inline comments.' =>
           pht('Hide or show all inline comments.'),
@@ -340,13 +345,12 @@ final class DifferentialChangesetListView extends AphrontView {
     $meta = array();
 
     $qparams = array(
-      'ref'         => $ref,
-      'whitespace'  => $this->whitespace,
+      'ref' => $ref,
     );
 
     if ($this->standaloneURI) {
       $uri = new PhutilURI($this->standaloneURI);
-      $uri->setQueryParams($uri->getQueryParams() + $qparams);
+      $uri = $this->appendDefaultQueryParams($uri, $qparams);
       $meta['standaloneURI'] = (string)$uri;
     }
 
@@ -369,7 +373,7 @@ final class DifferentialChangesetListView extends AphrontView {
     if ($this->leftRawFileURI) {
       if ($change != DifferentialChangeType::TYPE_ADD) {
         $uri = new PhutilURI($this->leftRawFileURI);
-        $uri->setQueryParams($uri->getQueryParams() + $qparams);
+        $uri = $this->appendDefaultQueryParams($uri, $qparams);
         $meta['leftURI'] = (string)$uri;
       }
     }
@@ -378,7 +382,7 @@ final class DifferentialChangesetListView extends AphrontView {
       if ($change != DifferentialChangeType::TYPE_DELETE &&
           $change != DifferentialChangeType::TYPE_MULTICOPY) {
         $uri = new PhutilURI($this->rightRawFileURI);
-        $uri->setQueryParams($uri->getQueryParams() + $qparams);
+        $uri = $this->appendDefaultQueryParams($uri, $qparams);
         $meta['rightURI'] = (string)$uri;
       }
     }
@@ -407,6 +411,25 @@ final class DifferentialChangesetListView extends AphrontView {
       ->setMetadata($meta)
       ->addSigil('differential-view-options');
 
+  }
+
+  private function appendDefaultQueryParams(PhutilURI $uri, array $params) {
+    // Add these default query parameters to the query string if they do not
+    // already exist.
+
+    $have = array();
+    foreach ($uri->getQueryParamsAsPairList() as $pair) {
+      list($key, $value) = $pair;
+      $have[$key] = true;
+    }
+
+    foreach ($params as $key => $value) {
+      if (!isset($have[$key])) {
+        $uri->appendQueryParam($key, $value);
+      }
+    }
+
+    return $uri;
   }
 
 }

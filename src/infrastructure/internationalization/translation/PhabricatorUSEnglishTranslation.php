@@ -9,10 +9,6 @@ final class PhabricatorUSEnglishTranslation
 
   protected function getTranslations() {
     return array(
-      'No daemon(s) with id(s) "%s" exist!' => array(
-        'No daemon with id %s exists!',
-        'No daemons with ids %s exist!',
-      ),
       'These %d configuration value(s) are related:' => array(
         'This configuration value is related:',
         'These configuration values are related:',
@@ -595,68 +591,78 @@ final class PhabricatorUSEnglishTranslation
         '%s changed files, attached: %3$s; detached: %5$s.',
 
 
-      '%s added %s dependencie(s): %s.' => array(
+      '%s added %s parent revision(s): %s.' => array(
         array(
-          '%s added a dependency: %3$s.',
-          '%s added dependencies: %3$s.',
+          '%s added a parent revision: %3$s.',
+          '%s added parent revisions: %3$s.',
         ),
       ),
 
-      '%s added %s dependencie(s) for %s: %s.' => array(
+      '%s added %s parent revision(s) for %s: %s.' => array(
         array(
-          '%s added a dependency for %3$s: %4$s.',
-          '%s added dependencies for %3$s: %4$s.',
+          '%s added a parent revision for %3$s: %4$s.',
+          '%s added parent revisions for %3$s: %4$s.',
         ),
       ),
 
-      '%s removed %s dependencie(s): %s.' => array(
+      '%s removed %s parent revision(s): %s.' => array(
         array(
-          '%s removed a dependency: %3$s.',
-          '%s removed dependencies: %3$s.',
+          '%s removed a parent revision: %3$s.',
+          '%s removed parent revisions: %3$s.',
         ),
       ),
 
-      '%s removed %s dependencie(s) for %s: %s.' => array(
+      '%s removed %s parent revision(s) for %s: %s.' => array(
         array(
-          '%s removed a dependency for %3$s: %4$s.',
-          '%s removed dependencies for %3$s: %4$s.',
+          '%s removed a parent revision for %3$s: %4$s.',
+          '%s removed parent revisions for %3$s: %4$s.',
         ),
       ),
 
-      '%s edited dependencie(s), added %s: %s; removed %s: %s.' => array(
-        '%s edited dependencies, added: %3$s; removed: %5$s.',
+      '%s edited parent revision(s), added %s: %s; removed %s: %s.' => array(
+        '%s edited parent revisions, added: %3$s; removed: %5$s.',
       ),
 
-      '%s edited dependencie(s) for %s, added %s: %s; removed %s: %s.' => array(
-        '%s edited dependencies for %s, added: %3$s; removed: %5$s.',
+      '%s edited parent revision(s) for %s, '.
+      'added %s: %s; removed %s: %s.' => array(
+        '%s edited parent revisions for %s, added: %3$s; removed: %5$s.',
       ),
 
-      '%s added %s dependent revision(s): %s.' => array(
+      '%s added %s child revision(s): %s.' => array(
         array(
-          '%s added a dependent revision: %3$s.',
-          '%s added dependent revisions: %3$s.',
+          '%s added a child revision: %3$s.',
+          '%s added child revisions: %3$s.',
         ),
       ),
 
-      '%s added %s dependent revision(s) for %s: %s.' => array(
+      '%s added %s child revision(s) for %s: %s.' => array(
         array(
-          '%s added a dependent revision for %3$s: %4$s.',
-          '%s added dependent revisions for %3$s: %4$s.',
+          '%s added a child revision for %3$s: %4$s.',
+          '%s added child revisions for %3$s: %4$s.',
         ),
       ),
 
-      '%s removed %s dependent revision(s): %s.' => array(
+      '%s removed %s child revision(s): %s.' => array(
         array(
-          '%s removed a dependent revision: %3$s.',
-          '%s removed dependent revisions: %3$s.',
+          '%s removed a child revision: %3$s.',
+          '%s removed child revisions: %3$s.',
         ),
       ),
 
-      '%s removed %s dependent revision(s) for %s: %s.' => array(
+      '%s removed %s child revision(s) for %s: %s.' => array(
         array(
-          '%s removed a dependent revision for %3$s: %4$s.',
-          '%s removed dependent revisions for %3$s: %4$s.',
+          '%s removed a child revision for %3$s: %4$s.',
+          '%s removed child revisions for %3$s: %4$s.',
         ),
+      ),
+
+      '%s edited child revision(s), added %s: %s; removed %s: %s.' => array(
+        '%s edited child revisions, added: %3$s; removed: %5$s.',
+      ),
+
+      '%s edited child revision(s) for %s, '.
+      'added %s: %s; removed %s: %s.' => array(
+        '%s edited child revisions for %s, added: %3$s; removed: %5$s.',
       ),
 
       '%s added %s commit(s): %s.' => array(
@@ -1649,6 +1655,67 @@ final class PhabricatorUSEnglishTranslation
       'Destroyed %s credential(s) of type "%s".' => array(
         'Destroyed one credential of type "%2$s".',
         'Destroyed %s credentials of type "%s".',
+      ),
+
+      '%s notification(s) about objects which no longer exist or which '.
+      'you can no longer see were discarded.' => array(
+        'One notification about an object which no longer exists or which '.
+        'you can no longer see was discarded.',
+        '%s notifications about objects which no longer exist or which '.
+        'you can no longer see were discarded.',
+      ),
+
+      'This draft revision will be sent for review once %s '.
+      'build(s) pass: %s.' => array(
+        'This draft revision will be sent for review once this build '.
+        'passes: %2$s.',
+        'This draft revision will be sent for review once these builds '.
+        'pass: %2$s.',
+      ),
+
+      'This factor recently issued a challenge to a different login '.
+      'session. Wait %s second(s) for the code to cycle, then try '.
+      'again.' => array(
+        'This factor recently issued a challenge to a different login '.
+        'session. Wait %s second for the code to cycle, then try '.
+        'again.',
+        'This factor recently issued a challenge to a different login '.
+        'session. Wait %s seconds for the code to cycle, then try '.
+        'again.',
+      ),
+
+      'This factor recently issued a challenge for a different '.
+      'workflow. Wait %s second(s) for the code to cycle, then try '.
+      'again.' => array(
+        'This factor recently issued a challenge for a different '.
+        'workflow. Wait %s second for the code to cycle, then try '.
+        'again.',
+        'This factor recently issued a challenge for a different '.
+        'workflow. Wait %s seconds for the code to cycle, then try '.
+        'again.',
+      ),
+
+
+      'This factor recently issued a challenge which has expired. '.
+      'A new challenge can not be issued yet. Wait %s second(s) for '.
+      'the code to cycle, then try again.' => array(
+        'This factor recently issued a challenge which has expired. '.
+        'A new challenge can not be issued yet. Wait %s second for '.
+        'the code to cycle, then try again.',
+        'This factor recently issued a challenge which has expired. '.
+        'A new challenge can not be issued yet. Wait %s seconds for '.
+        'the code to cycle, then try again.',
+      ),
+
+      'You recently provided a response to this factor. Responses '.
+      'may not be reused. Wait %s second(s) for the code to cycle, '.
+      'then try again.' => array(
+        'You recently provided a response to this factor. Responses '.
+        'may not be reused. Wait %s second for the code to cycle, '.
+        'then try again.',
+        'You recently provided a response to this factor. Responses '.
+        'may not be reused. Wait %s seconds for the code to cycle, '.
+        'then try again.',
       ),
 
     );

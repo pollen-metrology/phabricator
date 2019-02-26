@@ -73,20 +73,40 @@ final class PhabricatorFileDataController extends PhabricatorFileController {
       list($begin, $end) = $response->parseHTTPRange($range);
     }
 
-    $is_viewable = $file->isViewableInBrowser();
+    if (!$file->isViewableInBrowser()) {
+      $is_download = true;
+    }
+
     $request_type = $request->getHTTPHeader('X-Phabricator-Request-Type');
     $is_lfs = ($request_type == 'git-lfs');
 
-    if ($is_viewable && !$is_download) {
+    if (!$is_download) {
       $response->setMimeType($file->getViewableMimeType());
     } else {
       $is_post = $request->isHTTPPost();
+      $is_public = !$viewer->isLoggedIn();
 
       // NOTE: Require POST to download files from the primary domain. If the
       // request is not a POST request but arrives on the primary domain, we
       // render a confirmation dialog. For discussion, see T13094.
 
-      $is_safe = ($is_alternate_domain || $is_lfs || $is_post);
+      // There are two exceptions to this rule:
+
+      // Git LFS requests can download with GET. This is safe (Git LFS won't
+      // execute files it downloads) and necessary to support Git LFS.
+
+      // Requests with no credentials may also download with GET. This
+      // primarily supports downloading files with `arc download` or other
+      // API clients. This is only "mostly" safe: if you aren't logged in, you
+      // are likely immune to XSS and CSRF. However, an attacker may still be
+      // able to set cookies on this domain (for example, to fixate your
+      // session). For now, we accept these risks because users running
+      // Phabricator in this mode are knowingly accepting a security risk
+      // against setup advice, and there's significant value in having
+      // API development against test and production installs work the same
+      // way.
+
+      $is_safe = ($is_alternate_domain || $is_post || $is_lfs || $is_public);
       if (!$is_safe) {
         return $this->newDialog()
           ->setSubmitURI($file->getDownloadURI())
@@ -108,6 +128,19 @@ final class PhabricatorFileDataController extends PhabricatorFileController {
 
     $response->setContentLength($file->getByteSize());
     $response->setContentIterator($iterator);
+
+    // In Chrome, we must permit this domain in "object-src" CSP when serving a
+    // PDF or the browser will refuse to render it.
+    if (!$is_download && $file->isPDF()) {
+      $request_uri = id(clone $request->getAbsoluteRequestURI())
+        ->setPath(null)
+        ->setFragment(null)
+        ->removeAllQueryParams();
+
+      $response->addContentSecurityPolicyURI(
+        'object-src',
+        (string)$request_uri);
+    }
 
     return $response;
   }

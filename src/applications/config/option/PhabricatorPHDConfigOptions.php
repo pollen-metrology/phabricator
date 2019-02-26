@@ -34,9 +34,19 @@ final class PhabricatorPHDConfigOptions
         ->setSummary(pht('Maximum taskmaster daemon pool size.'))
         ->setDescription(
           pht(
-            'Maximum number of taskmaster daemons to run at once. Raising '.
-            'this can increase the maximum throughput of the task queue. The '.
-            'pool will automatically scale down when unutilized.')),
+            "Maximum number of taskmaster daemons to run at once. Raising ".
+            "this can increase the maximum throughput of the task queue. The ".
+            "pool will automatically scale down when unutilized.".
+            "\n\n".
+            "If you are running a cluster, this limit applies separately ".
+            "to each instance of `phd`. For example, if this limit is set ".
+            "to `4` and you have three hosts running daemons, the effective ".
+            "global limit will be 12.".
+            "\n\n".
+            "After changing this value, you must restart the daemons. Most ".
+            "configuration changes are picked up by the daemons ".
+            "automatically, but pool sizes can not be changed without a ".
+            "restart.")),
       $this->newOption('phd.verbose', 'bool', false)
         ->setLocked(true)
         ->setBoolOptions(

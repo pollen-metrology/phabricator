@@ -47,10 +47,13 @@ final class PhabricatorMemeEngine extends Phobject {
   }
 
   public function getGenerateURI() {
-    return id(new PhutilURI('/macro/meme/'))
-      ->alter('macro', $this->getTemplate())
-      ->alter('above', $this->getAboveText())
-      ->alter('below', $this->getBelowText());
+    $params = array(
+      'macro' => $this->getTemplate(),
+      'above' => $this->getAboveText(),
+      'below' => $this->getBelowText(),
+    );
+
+    return new PhutilURI('/macro/meme/', $params);
   }
 
   public function newAsset() {
@@ -104,8 +107,8 @@ final class PhabricatorMemeEngine extends Phobject {
   private function newTransformHash() {
     $properties = array(
       'kind' => 'meme',
-      'above' => phutil_utf8_strtoupper($this->getAboveText()),
-      'below' => phutil_utf8_strtoupper($this->getBelowText()),
+      'above' => $this->getAboveText(),
+      'below' => $this->getBelowText(),
     );
 
     $properties = phutil_json_encode($properties);
@@ -174,6 +177,15 @@ final class PhabricatorMemeEngine extends Phobject {
   private function newAssetData(PhabricatorFile $template) {
     $template_data = $template->loadFileData();
 
+    // When we aren't adding text, just return the data unmodified. This saves
+    // us from doing expensive stitching when we aren't actually making any
+    // changes to the image.
+    $above_text = $this->getAboveText();
+    $below_text = $this->getBelowText();
+    if (!strlen(trim($above_text)) && !strlen(trim($below_text))) {
+      return $template_data;
+    }
+
     $result = $this->newImagemagickAsset($template, $template_data);
     if ($result) {
       return $result;
@@ -236,7 +248,10 @@ final class PhabricatorMemeEngine extends Phobject {
       Filesystem::writeFile($output_name, $memed_frame_data);
     }
 
-    $future = new ExecFuture('convert -loop 0 %Ls %s', $output_files, $output);
+    $future = new ExecFuture(
+      'convert -dispose background -loop 0 %Ls %s',
+      $output_files,
+      $output);
     $future->setTimeout(10)->resolvex();
 
     return Filesystem::readFile($output);
@@ -297,6 +312,9 @@ final class PhabricatorMemeEngine extends Phobject {
       $font_max = 72;
       $font_min = 5;
 
+      $margin_x = 16;
+      $margin_y = 16;
+
       $last = null;
       $cursor = floor(($font_max + $font_min) / 2);
       $min = $font_min;
@@ -321,12 +339,12 @@ final class PhabricatorMemeEngine extends Phobject {
           // text extends, for example if it has a "y".
           $descend = $box[3];
 
-          if ($height > $dim_y) {
+          if (($height + $margin_y) > $dim_y) {
             $all_fit = false;
             break;
           }
 
-          if ($width > $dim_x) {
+          if (($width + $margin_x) > $dim_x) {
             $all_fit = false;
             break;
           }

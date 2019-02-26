@@ -57,6 +57,11 @@ abstract class DifferentialRevisionActionTransaction
     return null;
   }
 
+  protected function getRevisionActionSubmitButtonText(
+    DifferentialRevision $revision) {
+    return null;
+  }
+
   public static function loadAllActions() {
     return id(new PhutilClassMapQuery())
       ->setAncestorClass(__CLASS__)
@@ -80,7 +85,7 @@ abstract class DifferentialRevisionActionTransaction
     DifferentialRevision $revision) {
     return array(
       array(),
-      null,
+      array(),
     );
   }
 
@@ -109,6 +114,9 @@ abstract class DifferentialRevisionActionTransaction
 
         $group_key = $this->getRevisionActionGroupKey();
         $field->setCommentActionGroupKey($group_key);
+
+        $button_text = $this->getRevisionActionSubmitButtonText($revision);
+        $field->setActionSubmitButtonText($button_text);
 
         // Currently, every revision action conflicts with every other
         // revision action: for example, you can not simultaneously Accept and
@@ -147,10 +155,23 @@ abstract class DifferentialRevisionActionTransaction
     $actor = $this->getActor();
 
     $action_exception = null;
-    try {
-      $this->validateAction($object, $actor);
-    } catch (Exception $ex) {
-      $action_exception = $ex;
+    foreach ($xactions as $xaction) {
+      // If this is a draft demotion action, let it skip all the normal
+      // validation. This is a little hacky and should perhaps move down
+      // into the actual action implementations, but currently we can not
+      // apply this rule in validateAction() because it doesn't operate on
+      // the actual transaction.
+      if ($xaction->getMetadataValue('draft.demote')) {
+        continue;
+      }
+
+      try {
+        $this->validateAction($object, $actor);
+      } catch (Exception $ex) {
+        $action_exception = $ex;
+      }
+
+      break;
     }
 
     foreach ($xactions as $xaction) {

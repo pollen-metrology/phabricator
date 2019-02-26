@@ -35,7 +35,26 @@ final class PhabricatorTypeaheadModularDatasourceController
 
     if (isset($sources[$class])) {
       $source = $sources[$class];
-      $source->setParameters($request->getRequestData());
+
+      $parameters = array();
+
+      $raw_parameters = $request->getStr('parameters');
+      if (strlen($raw_parameters)) {
+        try {
+          $parameters = phutil_json_decode($raw_parameters);
+        } catch (PhutilJSONParserException $ex) {
+          return $this->newDialog()
+            ->setTitle(pht('Invalid Parameters'))
+            ->appendParagraph(
+              pht(
+                'The HTTP parameter named "parameters" for this request is '.
+                'not a valid JSON parameter. JSON is required. Exception: %s',
+                $ex->getMessage()))
+            ->addCancelButton('/');
+        }
+      }
+
+      $source->setParameters($parameters);
       $source->setViewer($viewer);
 
       // NOTE: Wrapping the source in a Composite datasource ensures we perform
@@ -107,10 +126,20 @@ final class PhabricatorTypeaheadModularDatasourceController
           $results = array_slice($results, 0, $limit, $preserve_keys = true);
           if (($offset + (2 * $limit)) < $hard_limit) {
             $next_uri = id(new PhutilURI($request->getRequestURI()))
-              ->setQueryParam('offset', $offset + $limit)
-              ->setQueryParam('q', $query)
-              ->setQueryParam('raw', $raw_query)
-              ->setQueryParam('format', 'html');
+              ->replaceQueryParam('offset', $offset + $limit)
+              ->replaceQueryParam('format', 'html');
+
+            if ($query !== null) {
+              $next_uri->replaceQueryParam('q', $query);
+            } else {
+              $next_uri->removeQueryParam('q');
+            }
+
+            if ($raw_query !== null) {
+              $next_uri->replaceQueryParam('raw', $raw_query);
+            } else {
+              $next_uri->removeQueryParam('raw');
+            }
 
             $next_link = javelin_tag(
               'a',
@@ -229,7 +258,9 @@ final class PhabricatorTypeaheadModularDatasourceController
           $parameters = $source->getParameters();
           if ($parameters) {
             $reference_uri = (string)id(new PhutilURI($reference_uri))
-              ->setQueryParam('parameters', phutil_json_encode($parameters));
+              ->replaceQueryParam(
+                'parameters',
+                phutil_json_encode($parameters));
           }
 
           $reference_link = phutil_tag(
@@ -276,10 +307,20 @@ final class PhabricatorTypeaheadModularDatasourceController
     // format to make it easier to debug typeahead output.
 
     foreach ($sources as $key => $source) {
+      // See T13119. Exclude proxy datasources from the dropdown since they
+      // fatal if built like this without actually being configured with an
+      // underlying datasource. This is a bit hacky but this is just a
+      // debugging/development UI anyway.
+      if ($source instanceof PhabricatorTypeaheadProxyDatasource) {
+        unset($sources[$key]);
+        continue;
+      }
+
       // This can happen with composite or generic sources.
       if (!$source->getDatasourceApplicationClass()) {
         continue;
       }
+
       if (!PhabricatorApplication::isClassInstalledForViewer(
         $source->getDatasourceApplicationClass(),
         $viewer)) {
