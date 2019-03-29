@@ -1,5 +1,9 @@
 <?php
 
+/**
+* Allow to send a POST request with a body (not simply URI parameters)
+*
+*/
 final class HarbormasterHTTPRequestWithContentBuildStepImplementation
   extends HarbormasterBuildStepImplementation {
 
