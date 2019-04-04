@@ -39,7 +39,7 @@ final class PhabricatorPeopleTimeProfileMenuItem
     );
   }
 
-  protected function newNavigationMenuItems(
+  protected function newMenuItemViewList(
     PhabricatorProfileMenuItemConfiguration $config) {
 
     $user = $config->getProfileObject();
