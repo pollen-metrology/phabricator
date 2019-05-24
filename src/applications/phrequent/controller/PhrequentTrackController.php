@@ -245,6 +245,9 @@
 
     if ($this->isWorklog ())
       {
+        if($worklog == ""){
+          $worklog = '7h';
+        }
         $form->appendChild (id (new AphrontFormTextControl ())->
                             setUser ($viewer)->setName ('worklog')->
                             setLabel ($worklog_action_text)->
