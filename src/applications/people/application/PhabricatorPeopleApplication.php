@@ -77,6 +77,8 @@ final class PhabricatorPeopleApplication extends PhabricatorApplication {
           'PhabricatorPeopleProfilePictureController',
         'manage/(?P<id>[1-9]\d*)/' =>
           'PhabricatorPeopleProfileManageController',
+        'time/(?P<id>[1-9]\d*)/' =>
+          'PhabricatorPeopleProfileTimeController',
       ),
       '/p/(?P<username>[\w._-]+)/' => array(
         '' => 'PhabricatorPeopleProfileViewController',

@@ -4,9 +4,9 @@
       "type": "client",
       "port": 22280,
       "listen": "0.0.0.0",
-      "ssl.key": null,
-      "ssl.cert": null,
-      "ssl.chain": null
+      "ssl.key": "/etc/ssl/private/phabricator.key",
+      "ssl.cert": "/etc/ssl/phabricator.crt",
+      "ssl.chain": "/etc/ssl/certchain.crt"
     },
     {
       "type": "admin",
@@ -19,7 +19,7 @@
   ],
   "logs": [
     {
-      "path": "/var/log/aphlict.log"
+      "path": "/home/phabricator/log/aphlict.log"
     }
   ],
   "pidfile": "/var/tmp/aphlict/pid/aphlict.pid"
