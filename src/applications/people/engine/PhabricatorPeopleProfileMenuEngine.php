@@ -76,10 +76,11 @@ final class PhabricatorPeopleProfileMenuEngine
     $items[] = $this->newItem()
       ->setBuiltinKey(self::ITEM_MANAGE)
       ->setMenuItemKey(PhabricatorPeopleManageProfileMenuItem::MENUITEMKEY);
-
+/*
     $items[] = $this->newItem()
       ->setBuiltinKey(self::ITEM_TIME)
       ->setMenuItemKey(PhabricatorPeopleTimeProfileMenuItem::MENUITEMKEY);
+*/
     return $items;
   }
 
